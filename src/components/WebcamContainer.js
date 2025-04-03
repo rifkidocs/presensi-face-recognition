@@ -154,9 +154,6 @@ const WebCamContainer = () => {
           )
           .withFaceLandmarks()
           .withFaceDescriptors();
-
-        console.log("Detections:", detections); // Debugging log
-
         const resizedDetections = faceapi.resizeResults(
           detections,
           displaySize
@@ -166,10 +163,6 @@ const WebCamContainer = () => {
 
         resizedDetections.forEach((detection) => {
           const match = faceMatcher.findBestMatch(detection.descriptor);
-          console.log(
-            `Match: ${match.toString()} | Distance: ${match.distance}`
-          ); // Debugging log
-
           const label = match.distance < 0.5 ? match.label : "unknown";
           const { box } = detection.detection;
           const drawBox = new faceapi.draw.DrawBox(box, { label });
@@ -216,6 +209,7 @@ const WebCamContainer = () => {
       <h1 className='text-3xl font-bold mb-4'>Face Recognition Attendance</h1>
       {showLivenessCheck && (
         <LivenessCheck
+          userData={userData}
           onVerificationComplete={(success) => {
             setLivenessVerified(success);
             if (success) {
@@ -345,6 +339,37 @@ const WebCamContainer = () => {
             Keluar
           </button>
         </div>
+      )}
+    </div>
+  );
+};
+
+const WebcamContainer = () => {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userData, setUserData] = useState(null);
+
+  const handleLogin = (data) => {
+    setIsLoggedIn(true);
+    setUserData(data);
+  };
+
+  const handleVerificationComplete = (success) => {
+    if (success) {
+      // Reset state setelah verifikasi selesai
+      setIsLoggedIn(false);
+      setUserData(null);
+    }
+  };
+
+  return (
+    <div className='w-full max-w-md mx-auto'>
+      {!isLoggedIn ? (
+        <LoginForm onLogin={handleLogin} />
+      ) : (
+        <LivenessCheck
+          onVerificationComplete={handleVerificationComplete}
+          userData={userData}
+        />
       )}
     </div>
   );

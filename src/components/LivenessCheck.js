@@ -2,19 +2,24 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as faceapi from "face-api.js";
 
-const LivenessCheck = ({ onVerificationComplete }) => {
+const LivenessCheck = ({ onVerificationComplete, userData }) => {
+  console.log(userData);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const photoCanvasRef = useRef(null); // Canvas tambahan untuk menyimpan foto tanpa landmark
   const [currentInstructionIndex, setCurrentInstructionIndex] = useState(null);
   const [completedInstructions, setCompletedInstructions] = useState([]);
   const [isLivenessVerified, setIsLivenessVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [flashing, setFlashing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [isSubmitted, setIsSubmitted] = useState(false); // State untuk mencegah pengiriman ganda
 
   // Movement thresholds
-  const nodThreshold = 10;
-  const mouthOpenThreshold = 30;
-  const headTurnThreshold = 15; // Threshold untuk deteksi gerakan kepala ke samping
+  const nodThreshold = 20;
+  const mouthOpenThreshold = 30; // Menurunkan threshold untuk meningkatkan sensitivitas
+  const headTurnThreshold = 25; // Threshold untuk deteksi gerakan kepala ke samping
 
   // Refs for flags and counters
   const openMouthDone = useRef(false);
@@ -52,7 +57,7 @@ const LivenessCheck = ({ onVerificationComplete }) => {
     }
   }, []);
 
-  const pickRandomInstruction = useCallback(() => {
+  const pickRandomInstruction = useCallback(async () => {
     const availableInstructions = instructions.filter(
       (_, index) => !completedInstructions.includes(index)
     );
@@ -65,14 +70,101 @@ const LivenessCheck = ({ onVerificationComplete }) => {
         availableInstructions[randomIndex]
       );
       setCurrentInstructionIndex(chosenInstructionIndex);
-    } else {
+    } else if (!isSubmitted) {
       setIsLivenessVerified(true);
-      // Hentikan stream kamera setelah verifikasi selesai
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-        videoRef.current.srcObject = null;
+      setIsSubmitted(true); // Tandai bahwa proses pengiriman sudah dimulai
+
+      // Ambil foto dari photoCanvas (tanpa landmark) dan konversi ke blob
+      const photoData = photoCanvasRef.current.toDataURL("image/jpeg");
+      const blob = await (await fetch(photoData)).blob();
+
+      // Buat FormData untuk upload file
+      const formData = new FormData();
+      formData.append("files", blob, "presence-photo.jpg");
+
+      // Dapatkan koordinat lokasi pengguna
+      let koordinat_absen = "";
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+        koordinat_absen = `${position.coords.latitude}, ${position.coords.longitude}`;
+      } catch (err) {
+        console.error("Error getting location:", err);
+        setError(
+          "Gagal mendapatkan lokasi. Pastikan Anda mengizinkan akses lokasi."
+        );
+        return;
       }
-      onVerificationComplete(true);
+
+      setSubmitting(true);
+      setError(null);
+
+      try {
+        // Upload file foto terlebih dahulu
+        const uploadResponse = await fetch("http://localhost:1337/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Gagal mengupload foto");
+        }
+
+        const uploadResult = await uploadResponse.json();
+        const fotoId = uploadResult[0].id; // Mengambil ID foto dari array response
+
+        // Siapkan dan kirim data presensi
+        const presenceData = {
+          data: {
+            waktu_absen: new Date().toISOString(),
+            jenis_absen: "masuk",
+            koordinat_absen,
+            is_validated: true,
+            foto_absen: {
+              id: fotoId,
+            },
+            siswa: {
+              id: userData.data.id,
+            },
+          },
+        };
+
+        // Kirim data presensi
+        const response = await fetch(
+          "http://localhost:1337/api/presensi-siswas",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(presenceData),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error?.message || "Gagal mengirim data presensi"
+          );
+        }
+
+        // Hentikan stream kamera setelah verifikasi selesai
+        if (videoRef.current?.srcObject) {
+          videoRef.current.srcObject
+            .getTracks()
+            .forEach((track) => track.stop());
+          videoRef.current.srcObject = null;
+        }
+
+        onVerificationComplete(true);
+      } catch (err) {
+        setError(err.message);
+        console.error("Error sending presence data:", err);
+      } finally {
+        setSubmitting(false);
+      }
     }
   }, [completedInstructions, onVerificationComplete]);
 
@@ -89,19 +181,43 @@ const LivenessCheck = ({ onVerificationComplete }) => {
       if (detections.length > 0) {
         const landmarks = detections[0].landmarks;
         const canvasCtx = canvasRef.current.getContext("2d");
+        const photoCanvasCtx = photoCanvasRef.current.getContext("2d");
 
         const dims = faceapi.matchDimensions(
           canvasRef.current,
           videoRef.current,
           true
         );
+        // Set dimensi yang sama untuk photoCanvas
+        photoCanvasRef.current.width = canvasRef.current.width;
+        photoCanvasRef.current.height = canvasRef.current.height;
+
         const resizedDetections = faceapi.resizeResults(detections, dims);
+
+        // Clear both canvases
         canvasCtx.clearRect(
           0,
           0,
           canvasRef.current.width,
           canvasRef.current.height
         );
+        photoCanvasCtx.clearRect(
+          0,
+          0,
+          photoCanvasRef.current.width,
+          photoCanvasRef.current.height
+        );
+
+        // Draw video frame to photo canvas first
+        photoCanvasCtx.drawImage(
+          videoRef.current,
+          0,
+          0,
+          photoCanvasRef.current.width,
+          photoCanvasRef.current.height
+        );
+
+        // Draw landmarks on display canvas
         faceapi.draw.drawDetections(canvasRef.current, resizedDetections);
         faceapi.draw.drawFaceLandmarks(canvasRef.current, resizedDetections);
 
@@ -244,6 +360,7 @@ const LivenessCheck = ({ onVerificationComplete }) => {
               ref={canvasRef}
               className='absolute top-0 left-0 w-full h-full'
             />
+            <canvas ref={photoCanvasRef} className='hidden' />
           </div>
 
           {isLivenessVerified && (
