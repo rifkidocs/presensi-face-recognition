@@ -5,6 +5,7 @@ import "@tensorflow/tfjs-backend-webgl";
 import Image from "next/image";
 import React, { useRef, useState, useEffect } from "react";
 import LoginForm from "./LoginForm";
+import LivenessCheck from "./LivenessCheck";
 
 const WebCamContainer = () => {
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -14,6 +15,8 @@ const WebCamContainer = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [faceRecognized, setFaceRecognized] = useState(false);
+  const [showLivenessCheck, setShowLivenessCheck] = useState(false);
+  const [livenessVerified, setLivenessVerified] = useState(false);
 
   const videoRef = useRef();
   const canvasRef = useRef();
@@ -185,9 +188,7 @@ const WebCamContainer = () => {
               // Stop webcam after successful recognition
               if (!faceRecognized) {
                 setFaceRecognized(true);
-                setTimeout(() => {
-                  closeWebcam();
-                }, 1500); // Give a short delay to show the recognition before closing
+                setShowLivenessCheck(true);
               }
             }
           }
@@ -213,6 +214,18 @@ const WebCamContainer = () => {
   return (
     <div className='min-h-screen bg-gray-900 text-white flex flex-col items-center py-8 space-y-8 w-full'>
       <h1 className='text-3xl font-bold mb-4'>Face Recognition Attendance</h1>
+      {showLivenessCheck && (
+        <LivenessCheck
+          onVerificationComplete={(success) => {
+            setLivenessVerified(success);
+            if (success) {
+              setTimeout(() => {
+                closeWebcam();
+              }, 1500);
+            }
+          }}
+        />
+      )}
 
       {!isLoggedIn ? (
         <LoginForm onLogin={handleLogin} />
