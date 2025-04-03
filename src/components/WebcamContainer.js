@@ -209,7 +209,6 @@ const WebCamContainer = () => {
       <h1 className='text-3xl font-bold mb-4'>Face Recognition Attendance</h1>
       {showLivenessCheck && (
         <LivenessCheck
-          userData={userData}
           onVerificationComplete={(success) => {
             setLivenessVerified(success);
             if (success) {
