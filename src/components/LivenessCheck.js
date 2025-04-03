@@ -150,6 +150,11 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           );
         }
 
+        // Tampilkan notifikasi sukses
+        alert(
+          "Verifikasi Liveness Berhasil! Presensi Anda telah berhasil dicatat."
+        );
+
         // Hentikan stream kamera setelah verifikasi selesai
         if (videoRef.current?.srcObject) {
           videoRef.current.srcObject
@@ -162,6 +167,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
       } catch (err) {
         setError(err.message);
         console.error("Error sending presence data:", err);
+        alert("Gagal mencatat presensi. Silakan coba lagi.");
       } finally {
         setSubmitting(false);
       }

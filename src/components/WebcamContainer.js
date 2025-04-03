@@ -10,7 +10,6 @@ import LivenessCheck from "./LivenessCheck";
 const WebCamContainer = () => {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [captureVideo, setCaptureVideo] = useState(false);
-  const [students, setStudents] = useState([]);
   const [detectInterval, setDetectInterval] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
@@ -169,16 +168,12 @@ const WebCamContainer = () => {
           drawBox.draw(canvasRef.current);
 
           if (label !== "unknown") {
-            // Track detection count for consistent recognition
             recognizedStudents.set(
               label,
               (recognizedStudents.get(label) || 0) + 1
             );
 
             if (recognizedStudents.get(label) > 3) {
-              addStudentToAttendance(label);
-
-              // Stop webcam after successful recognition
               if (!faceRecognized) {
                 setFaceRecognized(true);
                 setShowLivenessCheck(true);
@@ -286,43 +281,6 @@ const WebCamContainer = () => {
                 width={videoWidth}
                 height={videoHeight}
               />
-            </div>
-          )}
-
-          {faceRecognized && (
-            <div className='bg-green-800 p-6 rounded-xl w-full max-w-md text-center'>
-              <h2 className='text-xl font-semibold mb-2'>Wajah Terdeteksi!</h2>
-              <p>Presensi berhasil dicatat.</p>
-            </div>
-          )}
-
-          {students.length > 0 && (
-            <div className='mt-8 w-full'>
-              <h2 className='text-xl font-semibold mb-4'>Daftar Kehadiran</h2>
-              <div className='flex flex-wrap gap-4'>
-                {students.map((student) => (
-                  <div
-                    key={student}
-                    className='bg-gray-800 p-4 rounded-lg text-center'>
-                    {userData.role === "siswa" &&
-                    userData.data.foto_wajah &&
-                    userData.data.foto_wajah.length > 0 ? (
-                      <Image
-                        src={`http://localhost:1337${userData.data.foto_wajah[0].formats.thumbnail.url}`}
-                        width={100}
-                        height={120}
-                        alt={student}
-                        className='rounded-lg mb-2'
-                      />
-                    ) : (
-                      <div className='w-[100px] h-[120px] bg-gray-700 rounded-lg mb-2 flex items-center justify-center'>
-                        <span className='text-gray-400'>No Image</span>
-                      </div>
-                    )}
-                    <div className='font-medium'>{student}</div>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
