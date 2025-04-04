@@ -33,6 +33,89 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const [error, setError] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false); // State untuk mencegah pengiriman ganda
 
+  // Validasi awal untuk jadwal dan status presensi
+  useEffect(() => {
+    const validatePresence = async () => {
+      try {
+        // Cek jadwal presensi
+        const schedule = await getActiveSchedule();
+        if (!schedule) {
+          Swal.fire({
+            title: "Tidak Ada Jadwal Aktif",
+            text: "Tidak ada jadwal presensi yang aktif saat ini. Silakan hubungi administrator untuk informasi lebih lanjut.",
+            icon: "warning",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          onVerificationComplete(false);
+          return;
+        }
+
+        // Cek apakah waktu presensi masih dalam rentang yang diizinkan
+        const presenceTime = isWithinPresenceTime(schedule);
+        if (!presenceTime.isValid) {
+          let alertMessage = "Tidak ada jadwal presensi yang aktif saat ini.";
+          if (schedule && schedule.attributes) {
+            alertMessage = `Jadwal presensi masuk: ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}\nJadwal presensi pulang: ${schedule.attributes.jam_pulang} - ${schedule.attributes.batas_jam_pulang}`;
+          }
+          Swal.fire({
+            title: "Di Luar Waktu Presensi",
+            text: alertMessage,
+            icon: "error",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          onVerificationComplete(false);
+          return;
+        }
+
+        // Cek apakah siswa sudah presensi hari ini sesuai dengan jenis presensi yang berlaku
+        const today = new Date().toISOString().split("T")[0];
+        const checkResponse = await fetch(
+          `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!checkResponse.ok) {
+          throw new Error("Gagal mengecek status presensi");
+        }
+
+        const checkResult = await checkResponse.json();
+        if (checkResult.data.length > 0) {
+          Swal.fire({
+            title: "Sudah Presensi",
+            text: `Anda sudah melakukan presensi ${presenceTime.type} hari ini`,
+            icon: "info",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          onVerificationComplete(false);
+          return;
+        }
+
+        // Jika semua validasi berhasil, lanjutkan dengan loading model
+        loadModels();
+      } catch (error) {
+        console.error("Error validating presence:", error);
+        Swal.fire({
+          title: "Error",
+          text: "Terjadi kesalahan saat memvalidasi presensi. Silakan coba lagi.",
+          icon: "error",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#3085d6",
+        });
+        onVerificationComplete(false);
+      }
+    };
+
+    validatePresence();
+  }, []);
+
   // Movement thresholds
   const nodThreshold = 20;
   const mouthOpenThreshold = 30; // Menurunkan threshold untuk meningkatkan sensitivitas
@@ -155,34 +238,11 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         const uploadResult = await uploadResponse.json();
         const fotoId = uploadResult[0].id; // Mengambil ID foto dari array response
 
-        // Cek jadwal presensi
+        // Dapatkan jadwal dan tipe presensi yang aktif
         const schedule = await getActiveSchedule();
-        if (!schedule) {
-          Swal.fire({
-            title: "Tidak Ada Jadwal Aktif",
-            text: "Tidak ada jadwal presensi yang aktif saat ini. Silakan hubungi administrator untuk informasi lebih lanjut.",
-            icon: "warning",
-            confirmButtonText: "OK",
-            confirmButtonColor: "#3085d6",
-          });
-          throw new Error("Tidak ada jadwal presensi aktif");
-        }
-
-        // Cek apakah waktu presensi masih dalam rentang yang diizinkan
         const presenceTime = isWithinPresenceTime(schedule);
-        if (!presenceTime.isValid) {
-          Swal.fire({
-            title: "Di Luar Waktu Presensi",
-            text: `Jadwal presensi masuk: ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}\nJadwal presensi pulang: ${schedule.attributes.jam_pulang} - ${schedule.attributes.batas_jam_pulang}`,
-            icon: "error",
-            confirmButtonText: "OK",
-            confirmButtonColor: "#3085d6",
-          });
-          throw new Error("Di luar jadwal presensi");
-        }
 
-        // Cek apakah siswa sudah presensi hari ini sesuai dengan jenis presensi yang berlaku
-        const today = new Date().toISOString().split("T")[0];
+        // Lanjutkan dengan menyimpan data presensi
         const checkResponse = await fetch(
           `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
@@ -225,9 +285,13 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           },
         };
         if (!presenceTime.isValid) {
+          let alertMessage = "Tidak ada jadwal presensi yang aktif saat ini.";
+          if (schedule && schedule.attributes) {
+            alertMessage = `Jadwal presensi masuk: ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}\nJadwal presensi pulang: ${schedule.attributes.jam_pulang} - ${schedule.attributes.batas_jam_pulang}`;
+          }
           Swal.fire({
             title: "Di Luar Waktu Presensi",
-            text: `Jadwal presensi masuk: ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}\nJadwal presensi pulang: ${schedule.attributes.jam_pulang} - ${schedule.attributes.batas_jam_pulang}`,
+            text: alertMessage,
             icon: "error",
             confirmButtonText: "OK",
             confirmButtonColor: "#3085d6",
