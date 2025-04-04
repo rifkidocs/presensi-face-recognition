@@ -14,7 +14,8 @@
     "face-api.js": "^0.22.2",
     "next": "15.2.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sweetalert2": "^11.10.6"
   },
   "devDependencies": {
     "autoprefixer": "^10.0.1",

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as faceapi from "face-api.js";
+import Swal from "sweetalert2";
 
 // Fungsi untuk memeriksa apakah model sudah ada di IndexedDB
 const checkModelInIndexedDB = async (modelName) => {
@@ -62,6 +63,73 @@ const getModelFromIndexedDB = async (modelName) => {
 
 const LivenessCheck = ({ onVerificationComplete, userData }) => {
   console.log(userData);
+
+  // Fungsi untuk mengecek apakah siswa sudah presensi hari ini
+  const checkTodayPresence = async (studentId) => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const response = await fetch(
+        `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${studentId}&filters[waktu_absen][$gte]=${today}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Gagal mengecek data presensi");
+      }
+
+      const data = await response.json();
+      return data.data.length > 0;
+    } catch (error) {
+      console.error("Error checking today presence:", error);
+      throw error;
+    }
+  };
+
+  // Fungsi untuk mendapatkan jadwal presensi yang berlaku
+  const getActiveSchedule = async () => {
+    try {
+      const response = await fetch(
+        "http://localhost:1337/api/jadwal-presensis?filters[jenis_presensi][$eq]=siswa",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Gagal mengambil jadwal presensi");
+      }
+
+      const data = await response.json();
+      return data.data[0];
+    } catch (error) {
+      console.error("Error getting schedule:", error);
+      throw error;
+    }
+  };
+
+  // Fungsi untuk mengecek apakah waktu saat ini masih dalam rentang waktu presensi
+  const isWithinPresenceTime = (schedule) => {
+    const now = new Date();
+    const currentTime =
+      now.getHours().toString().padStart(2, "0") +
+      ":" +
+      now.getMinutes().toString().padStart(2, "0") +
+      ":" +
+      now.getSeconds().toString().padStart(2, "0");
+
+    return (
+      currentTime >= schedule.attributes.jam_masuk &&
+      currentTime <= schedule.attributes.batas_jam_masuk
+    );
+  };
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const photoCanvasRef = useRef(null); // Canvas tambahan untuk menyimpan foto tanpa landmark
@@ -212,6 +280,44 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           },
         };
 
+        // Cek apakah siswa sudah presensi hari ini
+        const hasPresenceToday = await checkTodayPresence(userData.data.id);
+        if (hasPresenceToday) {
+          Swal.fire({
+            title: "Presensi Sudah Dilakukan",
+            text: "Anda sudah melakukan presensi hari ini. Silakan kembali besok untuk melakukan presensi.",
+            icon: "info",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          throw new Error("Sudah presensi hari ini");
+        }
+
+        // Cek jadwal presensi
+        const schedule = await getActiveSchedule();
+        if (!schedule) {
+          Swal.fire({
+            title: "Tidak Ada Jadwal Aktif",
+            text: "Tidak ada jadwal presensi yang aktif saat ini. Silakan hubungi administrator untuk informasi lebih lanjut.",
+            icon: "warning",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          throw new Error("Tidak ada jadwal presensi aktif");
+        }
+
+        // Cek apakah waktu presensi masih dalam rentang yang diizinkan
+        if (!isWithinPresenceTime(schedule)) {
+          Swal.fire({
+            title: "Waktu Presensi Berakhir",
+            text: `Jadwal presensi yang berlaku adalah ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}`,
+            icon: "error",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          throw new Error("Di luar jadwal presensi");
+        }
+
         // Kirim data presensi
         const response = await fetch(
           "http://localhost:1337/api/presensi-siswas",
@@ -233,9 +339,13 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         }
 
         // Tampilkan notifikasi sukses
-        alert(
-          "Verifikasi Liveness Berhasil! Presensi Anda telah berhasil dicatat."
-        );
+        Swal.fire({
+          title: "Berhasil!",
+          text: "Verifikasi Liveness Berhasil! Presensi Anda telah berhasil dicatat.",
+          icon: "success",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#3085d6",
+        });
 
         // Hentikan stream kamera setelah verifikasi selesai
         if (videoRef.current?.srcObject) {
@@ -249,7 +359,21 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
       } catch (err) {
         setError(err.message);
         console.error("Error sending presence data:", err);
-        alert("Gagal mencatat presensi. Silakan coba lagi.");
+        if (
+          err.message === "Sudah presensi hari ini" ||
+          err.message === "Tidak ada jadwal presensi aktif" ||
+          err.message === "Di luar jadwal presensi"
+        ) {
+          // Alert sudah ditampilkan sebelumnya
+        } else {
+          Swal.fire({
+            title: "Terjadi Kesalahan",
+            text: "Terjadi kesalahan saat mencatat presensi. Silakan periksa koneksi internet Anda dan coba lagi. Jika masalah berlanjut, hubungi administrator.",
+            icon: "error",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+        }
       } finally {
         setSubmitting(false);
       }
