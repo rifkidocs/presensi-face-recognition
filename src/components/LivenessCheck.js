@@ -2,6 +2,64 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as faceapi from "face-api.js";
 
+// Fungsi untuk memeriksa apakah model sudah ada di IndexedDB
+const checkModelInIndexedDB = async (modelName) => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open("face-api-models", 1);
+    request.onerror = () => resolve(false);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("models")) {
+        resolve(false);
+        return;
+      }
+      const transaction = db.transaction(["models"], "readonly");
+      const store = transaction.objectStore("models");
+      const modelRequest = store.get(modelName);
+      modelRequest.onerror = () => resolve(false);
+      modelRequest.onsuccess = () => resolve(!!modelRequest.result);
+    };
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("models")) {
+        db.createObjectStore("models");
+      }
+    };
+  });
+};
+
+// Fungsi untuk menyimpan model ke IndexedDB
+const saveModelToIndexedDB = async (modelName, modelData) => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("face-api-models", 1);
+    request.onerror = () => reject(new Error("Failed to open IndexedDB"));
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction(["models"], "readwrite");
+      const store = transaction.objectStore("models");
+      const saveRequest = store.put(modelData, modelName);
+      saveRequest.onerror = () => reject(new Error("Failed to save model"));
+      saveRequest.onsuccess = () => resolve();
+    };
+  });
+};
+
+// Fungsi untuk mengambil model dari IndexedDB
+const getModelFromIndexedDB = async (modelName) => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("face-api-models", 1);
+    request.onerror = () => reject(new Error("Failed to open IndexedDB"));
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction(["models"], "readonly");
+      const store = transaction.objectStore("models");
+      const modelRequest = store.get(modelName);
+      modelRequest.onerror = () => reject(new Error("Failed to get model"));
+      modelRequest.onsuccess = () => resolve(modelRequest.result);
+    };
+  });
+};
+
 const LivenessCheck = ({ onVerificationComplete, userData }) => {
   console.log(userData);
   const videoRef = useRef(null);
@@ -39,8 +97,32 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const loadModels = useCallback(async () => {
     setLoading(true);
     try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri("/models");
-      await faceapi.nets.faceLandmark68Net.loadFromUri("/models");
+      const modelNames = ["tiny_face_detector", "face_landmark_68"];
+      const modelPromises = modelNames.map(async (modelName) => {
+        const isModelCached = await checkModelInIndexedDB(modelName);
+
+        if (isModelCached) {
+          console.log(`Loading ${modelName} from IndexedDB`);
+          const modelData = await getModelFromIndexedDB(modelName);
+          // Implementasi loading dari cache akan ditambahkan di sini
+          await faceapi.nets[
+            modelName === "tiny_face_detector"
+              ? "tinyFaceDetector"
+              : "faceLandmark68Net"
+          ].loadFromUri("/models");
+        } else {
+          console.log(`Downloading ${modelName} from server`);
+          await faceapi.nets[
+            modelName === "tiny_face_detector"
+              ? "tinyFaceDetector"
+              : "faceLandmark68Net"
+          ].loadFromUri("/models");
+          // Simpan model ke IndexedDB untuk penggunaan selanjutnya
+          await saveModelToIndexedDB(modelName, true);
+        }
+      });
+
+      await Promise.all(modelPromises);
 
       navigator.mediaDevices
         .getUserMedia({ video: true })

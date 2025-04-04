@@ -40,17 +40,31 @@ const WebCamContainer = () => {
 
   const loadModels = async () => {
     const MODEL_URL = "/models";
+    const modelConfigs = [
+      { name: "tiny_face_detector", net: faceapi.nets.tinyFaceDetector },
+      { name: "face_landmark_68", net: faceapi.nets.faceLandmark68Net },
+      { name: "face_recognition", net: faceapi.nets.faceRecognitionNet },
+      { name: "ssd_mobilenetv1", net: faceapi.nets.ssdMobilenetv1 },
+    ];
+
     try {
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      ]);
+      const modelPromises = modelConfigs.map(async ({ name, net }) => {
+        try {
+          console.log(`Loading ${name} from server`);
+          await net.loadFromUri(MODEL_URL);
+        } catch (err) {
+          console.error(`Error loading ${name}:`, err);
+          throw err;
+        }
+      });
+
+      await Promise.all(modelPromises);
       setModelsLoaded(true);
-      console.log("Models loaded successfully");
+      console.log("All models loaded successfully");
     } catch (error) {
       console.error("Error loading models:", error);
+      // Set state to false if there's an error
+      setModelsLoaded(false);
     }
   };
 
@@ -204,6 +218,7 @@ const WebCamContainer = () => {
       <h1 className='text-3xl font-bold mb-4'>Face Recognition Attendance</h1>
       {showLivenessCheck && (
         <LivenessCheck
+          userData={userData}
           onVerificationComplete={(success) => {
             setLivenessVerified(success);
             if (success) {
@@ -296,37 +311,6 @@ const WebCamContainer = () => {
             Keluar
           </button>
         </div>
-      )}
-    </div>
-  );
-};
-
-const WebcamContainer = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState(null);
-
-  const handleLogin = (data) => {
-    setIsLoggedIn(true);
-    setUserData(data);
-  };
-
-  const handleVerificationComplete = (success) => {
-    if (success) {
-      // Reset state setelah verifikasi selesai
-      setIsLoggedIn(false);
-      setUserData(null);
-    }
-  };
-
-  return (
-    <div className='w-full max-w-md mx-auto'>
-      {!isLoggedIn ? (
-        <LoginForm onLogin={handleLogin} />
-      ) : (
-        <LivenessCheck
-          onVerificationComplete={handleVerificationComplete}
-          userData={userData}
-        />
       )}
     </div>
   );
