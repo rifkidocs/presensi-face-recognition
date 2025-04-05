@@ -371,10 +371,40 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
 
         // Hentikan stream kamera setelah verifikasi selesai
         if (videoRef.current?.srcObject) {
-          videoRef.current.srcObject
-            .getTracks()
-            .forEach((track) => track.stop());
+          const stream = videoRef.current.srcObject;
+          const tracks = stream.getTracks();
+          tracks.forEach((track) => {
+            if (track.readyState === "live") {
+              track.stop();
+            }
+          });
           videoRef.current.srcObject = null;
+          videoRef.current.pause();
+          videoRef.current.load();
+        }
+
+        // Bersihkan canvas
+        if (canvasRef.current) {
+          const ctx = canvasRef.current.getContext("2d");
+          if (ctx) {
+            ctx.clearRect(
+              0,
+              0,
+              canvasRef.current.width,
+              canvasRef.current.height
+            );
+          }
+        }
+        if (photoCanvasRef.current) {
+          const ctx = photoCanvasRef.current.getContext("2d");
+          if (ctx) {
+            ctx.clearRect(
+              0,
+              0,
+              photoCanvasRef.current.width,
+              photoCanvasRef.current.height
+            );
+          }
         }
 
         onVerificationComplete(true);
@@ -421,10 +451,19 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks();
 
-      if (detections.length > 0) {
+      if (
+        detections.length > 0 &&
+        canvasRef.current &&
+        photoCanvasRef.current
+      ) {
         const landmarks = detections[0].landmarks;
         const canvasCtx = canvasRef.current.getContext("2d");
         const photoCanvasCtx = photoCanvasRef.current.getContext("2d");
+
+        if (!canvasCtx || !photoCanvasCtx) {
+          console.error("Failed to get canvas context");
+          return;
+        }
 
         const dims = faceapi.matchDimensions(
           canvasRef.current,

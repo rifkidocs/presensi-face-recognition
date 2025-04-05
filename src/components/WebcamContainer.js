@@ -159,11 +159,14 @@ const WebCamContainer = () => {
               <div>
                 {!captureVideo ? (
                   <button
-                    onClick={() => {
-                      setShowLivenessCheck(false);
-                      setLivenessVerified(false);
-                      setFaceRecognized(false);
-                      startWebcam();
+                    onClick={async () => {
+                      await checkLocation();
+                      if (isWithinRadius) {
+                        setShowLivenessCheck(false);
+                        setLivenessVerified(false);
+                        setFaceRecognized(false);
+                        startWebcam();
+                      }
                     }}
                     disabled={!modelsLoaded || !isWithinRadius}
                     className={`text-white px-4 py-2 rounded-xl transition w-full ${
