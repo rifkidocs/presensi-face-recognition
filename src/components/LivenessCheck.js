@@ -42,23 +42,12 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
     checkLocation,
   } = useLocation();
 
-  // Validasi awal untuk jadwal, status presensi, dan lokasi
+  // Validasi awal untuk jadwal dan status presensi
   useEffect(() => {
     const validatePresence = async () => {
       try {
-        // Cek lokasi pengguna
-        await checkLocation();
-        if (!isWithinRadius) {
-          Swal.fire({
-            title: "Di Luar Area Presensi",
-            text: "Anda berada di luar area yang ditentukan untuk melakukan presensi. Silakan mendekat ke lokasi yang ditentukan.",
-            icon: "error",
-            confirmButtonText: "OK",
-            confirmButtonColor: "#3085d6",
-          });
-          onVerificationComplete(false);
-          return;
-        }
+        // Gunakan status lokasi yang sudah divalidasi di WebcamContainer
+        // Tidak perlu melakukan pengecekan lokasi ulang
 
         if (locationError) {
           Swal.fire({

@@ -28,7 +28,8 @@ export const useLocation = () => {
       // Fetch location data from API
       const response = await fetch("http://localhost:1337/api/lokasi-presensi");
       const data = await response.json();
-      setLocationData(data.data);
+      const schoolData = data.data;
+      setLocationData(schoolData);
 
       // Get current position
       const position = await new Promise((resolve, reject) => {
@@ -40,14 +41,30 @@ export const useLocation = () => {
       });
 
       const { latitude: userLat, longitude: userLon } = position.coords;
+      const schoolLat = parseFloat(schoolData.latitude);
+      const schoolLon = parseFloat(schoolData.longitude);
+      const radius = parseFloat(schoolData.radius_meter);
+
       const distance = calculateDistance(
         userLat,
         userLon,
-        parseFloat(data.data.latitude),
-        parseFloat(data.data.longitude)
+        schoolLat,
+        schoolLon
       );
 
-      setIsWithinRadius(distance <= data.data.radius_meter);
+      console.log("Distance to school:", distance.toFixed(2), "meters");
+      console.log("Allowed radius:", radius, "meters");
+      console.log("User location:", userLat.toFixed(6), userLon.toFixed(6));
+      console.log(
+        "School location:",
+        schoolLat.toFixed(6),
+        schoolLon.toFixed(6)
+      );
+
+      const withinRadius = distance <= radius;
+      console.log("Within radius:", withinRadius);
+
+      setIsWithinRadius(withinRadius);
       setLocationError(null);
     } catch (error) {
       console.error("Error checking location:", error);

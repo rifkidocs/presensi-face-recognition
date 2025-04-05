@@ -40,6 +40,8 @@ const WebCamContainer = () => {
     checkLocation,
   } = useLocation();
 
+  const [userCoordinates, setUserCoordinates] = useState(null);
+
   useEffect(() => {
     if (isLoggedIn) {
       checkLocation();
@@ -48,19 +50,37 @@ const WebCamContainer = () => {
   }, [isLoggedIn]);
 
   const handleVideoOnPlay = async () => {
-    if (!isWithinRadius) {
-      closeWebcam();
-      return;
-    }
+    // Re-check location before starting face detection
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0,
+        });
+      });
 
-    await startFaceDetection({
-      videoRef,
-      canvasRef,
-      userData,
-      onFaceRecognized: () => setShowLivenessCheck(true),
-      videoWidth,
-      videoHeight,
-    });
+      const { latitude, longitude } = position.coords;
+      setUserCoordinates({ latitude, longitude });
+      await checkLocation();
+
+      if (!isWithinRadius) {
+        closeWebcam();
+        return;
+      }
+
+      await startFaceDetection({
+        videoRef,
+        canvasRef,
+        userData,
+        onFaceRecognized: () => setShowLivenessCheck(true),
+        videoWidth,
+        videoHeight,
+      });
+    } catch (error) {
+      console.error("Error getting location:", error);
+      closeWebcam();
+    }
   };
 
   const handleCloseWebcam = () => {
@@ -133,17 +153,57 @@ const WebCamContainer = () => {
               </div>
             )}
 
-            {locationChecked && !isWithinRadius && !locationError && (
-              <div className='bg-yellow-500 text-white p-3 rounded-lg mb-4'>
-                Anda berada di luar area presensi. Silakan pindah ke lokasi yang
-                ditentukan.
+            {locationChecked && !locationError && (
+              <div
+                className={`p-3 rounded-lg mb-4 ${
+                  isWithinRadius ? "bg-green-500" : "bg-yellow-500"
+                } text-white`}>
+                <p className='mb-2'>
+                  {isWithinRadius
+                    ? "Anda berada dalam area presensi."
+                    : "Anda berada di luar area presensi. Silakan pindah ke lokasi yang ditentukan."}
+                </p>
+                {userCoordinates && (
+                  <div className='text-sm'>
+                    <p>
+                      Koordinat Anda: {userCoordinates.latitude.toFixed(6)},{" "}
+                      {userCoordinates.longitude.toFixed(6)}
+                    </p>
+                    {locationData && (
+                      <p>
+                        Koordinat Sekolah: {locationData.latitude},{" "}
+                        {locationData.longitude}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             <div className='space-y-4'>
               <div className='flex justify-between items-center'>
                 <button
-                  onClick={checkLocation}
+                  onClick={async () => {
+                    try {
+                      const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                          resolve,
+                          reject,
+                          {
+                            enableHighAccuracy: true,
+                            timeout: 5000,
+                            maximumAge: 0,
+                          }
+                        );
+                      });
+
+                      const { latitude, longitude } = position.coords;
+                      setUserCoordinates({ latitude, longitude });
+                      await checkLocation();
+                    } catch (error) {
+                      console.error("Error getting location:", error);
+                    }
+                  }}
                   className='bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl transition'>
                   {locationLoading ? "Memuat..." : "Reload Lokasi"}
                 </button>
@@ -160,12 +220,33 @@ const WebCamContainer = () => {
                 {!captureVideo ? (
                   <button
                     onClick={async () => {
-                      await checkLocation();
-                      if (isWithinRadius) {
-                        setShowLivenessCheck(false);
-                        setLivenessVerified(false);
-                        setFaceRecognized(false);
-                        startWebcam();
+                      try {
+                        const position = await new Promise(
+                          (resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(
+                              resolve,
+                              reject,
+                              {
+                                enableHighAccuracy: true,
+                                timeout: 5000,
+                                maximumAge: 0,
+                              }
+                            );
+                          }
+                        );
+
+                        const { latitude, longitude } = position.coords;
+                        setUserCoordinates({ latitude, longitude });
+
+                        await checkLocation();
+                        if (isWithinRadius) {
+                          setShowLivenessCheck(false);
+                          setLivenessVerified(false);
+                          setFaceRecognized(false);
+                          startWebcam();
+                        }
+                      } catch (error) {
+                        console.error("Error getting location:", error);
                       }
                     }}
                     disabled={!modelsLoaded || !isWithinRadius}
