@@ -117,22 +117,22 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   }, []);
 
   // Movement thresholds
-  const nodThreshold = 20;
-  const mouthOpenThreshold = 30; // Menurunkan threshold untuk meningkatkan sensitivitas
-  const headTurnThreshold = 25; // Threshold untuk deteksi gerakan kepala ke samping
+  const nodThreshold = 50; // Threshold untuk deteksi gerakan kepala naik
+  const headTurnThreshold = 50; // Threshold untuk deteksi gerakan kepala ke samping
 
   // Refs for flags and counters
-  const openMouthDone = useRef(false);
+  const eyebrowRaiseDone = useRef(false);
   const headTurnDone = useRef(false);
   const nodDone = useRef(false);
   const initialNoseX = useRef(null);
   const initialNoseY = useRef(null);
   const maxNoseX = useRef(null);
   const minNoseX = useRef(null);
+  const initialEyebrowY = useRef(null);
 
   const instructions = [
-    "Silakan buka mulut Anda lebar-lebar.",
-    "Silakan gerakkan kepala Anda ke kiri dan kanan.",
+    "Silakan angkat kepala Anda.",
+    "Silakan gerakkan kepala Anda ke kiri atau kanan.",
     "Silakan anggukkan kepala Anda.",
   ];
 
@@ -242,6 +242,9 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         const schedule = await getActiveSchedule();
         const presenceTime = isWithinPresenceTime(schedule);
 
+        // Dapatkan tanggal hari ini
+        const today = new Date().toISOString().split("T")[0];
+
         // Lanjutkan dengan menyimpan data presensi
         const checkResponse = await fetch(
           `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
@@ -319,13 +322,17 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           );
         }
 
-        // Tampilkan notifikasi sukses
+        // Tampilkan notifikasi sukses dan tunggu konfirmasi
         Swal.fire({
           title: "Berhasil!",
           text: "Verifikasi Liveness Berhasil! Presensi Anda telah berhasil dicatat.",
           icon: "success",
           confirmButtonText: "OK",
           confirmButtonColor: "#3085d6",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.location.reload();
+          }
         });
 
         // Hentikan stream kamera setelah verifikasi selesai
@@ -425,15 +432,21 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
 
         switch (currentInstructionIndex) {
           case 0:
-            // Mouth open detection
-            const mouthTop = landmarks.positions[62];
-            const mouthBottom = landmarks.positions[66];
-            const mouthDistance = mouthBottom.y - mouthTop.y;
+            // Eyebrow raise detection
+            const leftEyebrow = landmarks.positions[19];
+            const rightEyebrow = landmarks.positions[24];
 
-            if (mouthDistance > mouthOpenThreshold && !openMouthDone.current) {
-              openMouthDone.current = true;
-              setCompletedInstructions([...completedInstructions, 0]);
-              setCurrentInstructionIndex(null);
+            if (initialEyebrowY.current === null) {
+              initialEyebrowY.current = (leftEyebrow.y + rightEyebrow.y) / 2;
+            } else {
+              const currentEyebrowY = (leftEyebrow.y + rightEyebrow.y) / 2;
+              const eyebrowMovement = initialEyebrowY.current - currentEyebrowY;
+
+              if (eyebrowMovement > 25 && !eyebrowRaiseDone.current) {
+                eyebrowRaiseDone.current = true;
+                setCompletedInstructions([...completedInstructions, 0]);
+                setCurrentInstructionIndex(null);
+              }
             }
             break;
 
@@ -529,13 +542,25 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
     return () => clearInterval(interval);
   }, [detectFace]);
 
+  useEffect(() => {
+    if (isLivenessVerified) {
+      // Hentikan kamera dan bersihkan tampilan setelah verifikasi berhasil
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
+        videoRef.current.srcObject = null;
+      }
+      // Panggil callback onVerificationComplete
+      onVerificationComplete(true);
+    }
+  }, [isLivenessVerified, onVerificationComplete]);
+
   return (
     <div className='relative w-full max-w-4xl mx-auto'>
       {loading ? (
         <div className='text-center text-white'>
           <p>Memuat model pengenalan wajah...</p>
         </div>
-      ) : (
+      ) : !isLivenessVerified ? (
         <>
           <div
             className={`mb-4 p-4 rounded-lg text-center ${
@@ -564,16 +589,8 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
             />
             <canvas ref={photoCanvasRef} className='hidden' />
           </div>
-
-          {isLivenessVerified && (
-            <div className='mt-4 p-4 bg-green-600 rounded-lg text-center'>
-              <p className='text-white text-lg'>
-                Verifikasi Liveness Berhasil!
-              </p>
-            </div>
-          )}
         </>
-      )}
+      ) : null}
     </div>
   );
 };

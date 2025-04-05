@@ -48,7 +48,9 @@ const WebCamContainer = () => {
 
   return (
     <div className='min-h-screen bg-gray-900 text-white flex flex-col items-center py-8 space-y-8 w-full'>
-      <h1 className='text-3xl font-bold mb-4'>Face Recognition Attendance</h1>
+      <h1 className='text-3xl font-bold mb-4'>
+        Sistem Presensi MTSS AR-ROUDLOH
+      </h1>
       {showLivenessCheck && (
         <LivenessCheck
           userData={userData}

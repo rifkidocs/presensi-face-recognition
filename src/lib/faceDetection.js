@@ -1,11 +1,17 @@
 import * as faceapi from "face-api.js";
 
-// Fungsi untuk mendeteksi mulut terbuka
-export const detectMouthOpen = (landmarks, threshold) => {
-  const mouthTop = landmarks.positions[62];
-  const mouthBottom = landmarks.positions[66];
-  const mouthDistance = mouthBottom.y - mouthTop.y;
-  return mouthDistance > threshold;
+// Fungsi untuk mendeteksi kedipan mata
+export const detectBlink = (landmarks, threshold) => {
+  const leftEyeTop = landmarks.positions[37];
+  const leftEyeBottom = landmarks.positions[41];
+  const rightEyeTop = landmarks.positions[44];
+  const rightEyeBottom = landmarks.positions[46];
+
+  const leftEyeDistance = leftEyeBottom.y - leftEyeTop.y;
+  const rightEyeDistance = rightEyeBottom.y - rightEyeTop.y;
+
+  // Kedipan terdeteksi jika jarak mata lebih kecil dari threshold
+  return leftEyeDistance < threshold && rightEyeDistance < threshold;
 };
 
 // Fungsi untuk mendeteksi gerakan kepala ke kiri dan kanan
