@@ -49,6 +49,12 @@ const WebCamContainer = () => {
     }
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    if (modelsLoaded && isLoggedIn && !faceRecognized) {
+      startWebcam();
+    }
+  }, [modelsLoaded, isLoggedIn, faceRecognized]);
+
   const handleVideoOnPlay = async () => {
     // Re-check location before starting face detection
     try {
@@ -73,7 +79,10 @@ const WebCamContainer = () => {
         videoRef,
         canvasRef,
         userData,
-        onFaceRecognized: () => setShowLivenessCheck(true),
+        onFaceRecognized: () => {
+          setShowLivenessCheck(true);
+          closeWebcam();
+        },
         videoWidth,
         videoHeight,
       });
