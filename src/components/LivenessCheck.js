@@ -13,6 +13,7 @@ import {
   getActiveSchedule,
   isWithinPresenceTime,
 } from "../lib/presenceUtils";
+import { useLocation } from "../hooks/useLocation";
 import {
   detectMouthOpen,
   detectHeadTurn,
@@ -33,10 +34,43 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const [error, setError] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false); // State untuk mencegah pengiriman ganda
 
-  // Validasi awal untuk jadwal dan status presensi
+  const {
+    locationData,
+    locationError,
+    isWithinRadius,
+    loading: locationLoading,
+    checkLocation,
+  } = useLocation();
+
+  // Validasi awal untuk jadwal, status presensi, dan lokasi
   useEffect(() => {
     const validatePresence = async () => {
       try {
+        // Cek lokasi pengguna
+        await checkLocation();
+        if (!isWithinRadius) {
+          Swal.fire({
+            title: "Di Luar Area Presensi",
+            text: "Anda berada di luar area yang ditentukan untuk melakukan presensi. Silakan mendekat ke lokasi yang ditentukan.",
+            icon: "error",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          onVerificationComplete(false);
+          return;
+        }
+
+        if (locationError) {
+          Swal.fire({
+            title: "Error Lokasi",
+            text: locationError,
+            icon: "error",
+            confirmButtonText: "OK",
+            confirmButtonColor: "#3085d6",
+          });
+          onVerificationComplete(false);
+          return;
+        }
         // Cek jadwal presensi
         const schedule = await getActiveSchedule();
         if (!schedule) {

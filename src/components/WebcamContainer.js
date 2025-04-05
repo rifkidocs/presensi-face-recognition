@@ -1,16 +1,18 @@
 "use client";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import LoginForm from "./LoginForm";
 import LivenessCheck from "./LivenessCheck";
 import { useFaceRecognition } from "../hooks/useFaceRecognition";
 import { useWebcam } from "../hooks/useWebcam";
+import { useLocation } from "../hooks/useLocation";
 
 const WebCamContainer = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [showLivenessCheck, setShowLivenessCheck] = useState(false);
   const [livenessVerified, setLivenessVerified] = useState(false);
+  const [locationChecked, setLocationChecked] = useState(false);
 
   const {
     modelsLoaded,
@@ -23,13 +25,34 @@ const WebCamContainer = () => {
     captureVideo,
     videoRef,
     canvasRef,
-    startVideo,
+    startVideo: startWebcam,
     closeWebcam,
     videoWidth,
     videoHeight,
+    setCaptureVideo,
   } = useWebcam();
 
+  const {
+    locationData,
+    locationError,
+    isWithinRadius,
+    loading: locationLoading,
+    checkLocation,
+  } = useLocation();
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      checkLocation();
+      setLocationChecked(true);
+    }
+  }, [isLoggedIn]);
+
   const handleVideoOnPlay = async () => {
+    if (!isWithinRadius) {
+      closeWebcam();
+      return;
+    }
+
     await startFaceDetection({
       videoRef,
       canvasRef,
@@ -38,6 +61,12 @@ const WebCamContainer = () => {
       videoWidth,
       videoHeight,
     });
+  };
+
+  const handleCloseWebcam = () => {
+    closeWebcam();
+    setShowLivenessCheck(false);
+    setLivenessVerified(false);
   };
 
   const handleLogin = (loginData) => {
@@ -98,21 +127,60 @@ const WebCamContainer = () => {
               </div>
             )}
 
-            <div className='space-x-4'>
-              {!captureVideo ? (
+            {locationError && (
+              <div className='bg-red-500 text-white p-3 rounded-lg mb-4'>
+                {locationError}
+              </div>
+            )}
+
+            {locationChecked && !isWithinRadius && !locationError && (
+              <div className='bg-yellow-500 text-white p-3 rounded-lg mb-4'>
+                Anda berada di luar area presensi. Silakan pindah ke lokasi yang
+                ditentukan.
+              </div>
+            )}
+
+            <div className='space-y-4'>
+              <div className='flex justify-between items-center'>
                 <button
-                  onClick={startVideo}
-                  disabled={!modelsLoaded}
-                  className='bg-green-500 hover:bg-green-400 text-white px-4 py-2 rounded-xl transition w-full'>
-                  Mulai Pengenalan Wajah
+                  onClick={checkLocation}
+                  className='bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl transition'>
+                  {locationLoading ? "Memuat..." : "Reload Lokasi"}
                 </button>
-              ) : (
-                <button
-                  onClick={closeWebcam}
-                  className='bg-red-500 hover:bg-red-400 text-white px-4 py-2 rounded-xl transition w-full'>
-                  Hentikan Kamera
-                </button>
-              )}
+
+                <span
+                  className={`px-3 py-1 rounded-lg ${
+                    isWithinRadius ? "bg-green-500" : "bg-red-500"
+                  }`}>
+                  {isWithinRadius ? "Lokasi Valid" : "Lokasi Tidak Valid"}
+                </span>
+              </div>
+
+              <div>
+                {!captureVideo ? (
+                  <button
+                    onClick={() => {
+                      setShowLivenessCheck(false);
+                      setLivenessVerified(false);
+                      setFaceRecognized(false);
+                      startWebcam();
+                    }}
+                    disabled={!modelsLoaded || !isWithinRadius}
+                    className={`text-white px-4 py-2 rounded-xl transition w-full ${
+                      isWithinRadius
+                        ? "bg-green-500 hover:bg-green-400"
+                        : "bg-gray-500 cursor-not-allowed"
+                    }`}>
+                    Mulai Pengenalan Wajah
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCloseWebcam}
+                    className='bg-red-500 hover:bg-red-400 text-white px-4 py-2 rounded-xl transition w-full'>
+                    Hentikan Kamera
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
