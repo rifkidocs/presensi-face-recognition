@@ -9,13 +9,23 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-popover": "^1.1.6",
+    "@radix-ui/react-slot": "^1.1.2",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "face-api.js": "^0.22.2",
+    "lucide-react": "^0.487.0",
     "next": "15.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sweetalert2": "^11.10.6"
+    "sweetalert2": "^11.10.6",
+    "tailwind-merge": "^3.1.0",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "autoprefixer": "^10.0.1",

@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
 
 const WebCamContainer = dynamic(() => import("../components/WebcamContainer"), {
