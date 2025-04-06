@@ -8,11 +8,9 @@ const WebCamContainer = dynamic(() => import("../components/WebcamContainer"), {
 
 export default function Home() {
   return (
-    <main className='flex min-h-screen flex-col items-center justify-center p-4 md:p-8 bg-gray-900'>
-      <div className='container mx-auto max-w-4xl rounded-xl overflow-hidden'>
-        <div className='p-2 md:p-8'>
-          <WebCamContainer />
-        </div>
+    <main className='flex justify-center items-center min-h-screen bg-gray-900'>
+      <div>
+        <WebCamContainer />
       </div>
     </main>
   );

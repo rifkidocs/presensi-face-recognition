@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import React, { useState, useEffect } from "react";
-import LoginForm from "./LoginForm";
+import { LoginForm } from "./login-form";
 import LivenessCheck from "./LivenessCheck";
 import { useFaceRecognition } from "../hooks/useFaceRecognition";
 import { useWebcam } from "../hooks/useWebcam";
@@ -105,10 +105,7 @@ const WebCamContainer = () => {
   };
 
   return (
-    <div className='min-h-screen bg-gray-900 text-white flex flex-col items-center py-8 space-y-8 w-full'>
-      <h1 className='text-3xl font-bold mb-4'>
-        Sistem Presensi MTSS AR-ROUDLOH
-      </h1>
+    <div className='min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center py-8 space-y-8 w-full'>
       {showLivenessCheck && (
         <LivenessCheck
           userData={userData}
