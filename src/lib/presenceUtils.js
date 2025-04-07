@@ -24,11 +24,11 @@ export const checkTodayPresence = async (studentId) => {
   }
 };
 
-// Fungsi untuk mendapatkan jadwal presensi yang berlaku
-export const getActiveSchedule = async () => {
+// Fungsi untuk mendapatkan jadwal presensi yang berlaku berdasarkan peran
+export const getActiveSchedule = async (role = "siswa") => {
   try {
     const response = await fetch(
-      "http://localhost:1337/api/jadwal-presensis?filters[jenis_presensi][$eq]=siswa",
+      `http://localhost:1337/api/jadwal-presensis?filters[jenis_presensi][$eq]=${role}`,
       {
         method: "GET",
         headers: {

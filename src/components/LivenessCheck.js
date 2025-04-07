@@ -60,8 +60,8 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           onVerificationComplete(false);
           return;
         }
-        // Cek jadwal presensi
-        const schedule = await getActiveSchedule();
+        // Cek jadwal presensi sesuai dengan role pengguna
+        const schedule = await getActiveSchedule(userData.role);
         if (!schedule) {
           Swal.fire({
             title: "Tidak Ada Jadwal Aktif",
@@ -92,10 +92,13 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           return;
         }
 
-        // Cek apakah siswa sudah presensi hari ini sesuai dengan jenis presensi yang berlaku
+        // Cek apakah guru sudah presensi hari ini sesuai dengan jenis presensi yang berlaku
         const today = new Date().toISOString().split("T")[0];
+        const endpoint =
+          userData.role === "siswa" ? "presensi-siswas" : "presensi-gurus";
+        const filterField = userData.role === "siswa" ? "siswa" : "guru";
         const checkResponse = await fetch(
-          `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+          `http://localhost:1337/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
             method: "GET",
             headers: {
@@ -262,15 +265,17 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         const fotoId = uploadResult[0].id; // Mengambil ID foto dari array response
 
         // Dapatkan jadwal dan tipe presensi yang aktif
-        const schedule = await getActiveSchedule();
+        const schedule = await getActiveSchedule("guru");
         const presenceTime = isWithinPresenceTime(schedule);
 
         // Dapatkan tanggal hari ini
         const today = new Date().toISOString().split("T")[0];
 
         // Lanjutkan dengan menyimpan data presensi
+        const endpoint = getEndpoint(userData.role);
+        const filterField = getFilterField(userData.role);
         const checkResponse = await fetch(
-          `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+          `http://localhost:1337/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
             method: "GET",
             headers: {
@@ -305,7 +310,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
             foto_absen: {
               id: fotoId,
             },
-            siswa: {
+            [userData.role === "siswa" ? "siswa" : "guru"]: {
               id: userData.data.id,
             },
           },
@@ -326,17 +331,14 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         }
 
         // Kirim data presensi
-        const response = await fetch(
-          "http://localhost:1337/api/presensi-siswas",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify(presenceData),
-          }
-        );
+        const response = await fetch(`http://localhost:1337/api/${endpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(presenceData),
+        });
 
         if (!response.ok) {
           const errorData = await response.json();
@@ -658,3 +660,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
 };
 
 export default LivenessCheck;
+
+const getEndpoint = (role) =>
+  role === "siswa" ? "presensi-siswas" : "presensi-gurus";
+const getFilterField = (role) => (role === "siswa" ? "siswa" : "guru");

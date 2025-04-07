@@ -51,7 +51,7 @@ export function LoginForm({ className, onLogin, ...props }) {
       const studentData = data.data[0];
 
       // Cek jadwal presensi aktif
-      const schedule = await getActiveSchedule();
+      const schedule = await getActiveSchedule("siswa");
       if (!schedule) {
         setError("Tidak ada jadwal presensi yang aktif saat ini");
         setLoading(false);
@@ -113,11 +113,131 @@ export function LoginForm({ className, onLogin, ...props }) {
     }
   };
 
-  const handleOtherRoleSubmit = () => {
-    onLogin({
-      role: selectedRole,
-      data: null,
-    });
+  const handleOtherRoleSubmit = async (e) => {
+    e.preventDefault();
+    if (selectedRole !== "guru") {
+      onLogin({
+        role: selectedRole,
+        data: null,
+      });
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Login ke admin panel
+      const loginResponse = await fetch("http://localhost:1337/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: e.target.email.value,
+          password: e.target.password.value,
+        }),
+      });
+
+      if (!loginResponse.ok) {
+        if (loginResponse.status === 429) {
+          throw new Error(
+            "Terlalu banyak percobaan login. Silakan tunggu beberapa saat sebelum mencoba kembali."
+          );
+        }
+        throw new Error("Email atau password salah");
+      }
+
+      const loginData = await loginResponse.json();
+      const token = loginData.data.token;
+
+      // Ambil data guru berdasarkan email menggunakan endpoint content-manager API
+      const guruResponse = await fetch(
+        `http://localhost:1337/content-manager/collection-types/api::guru-pegawai.guru-pegawai?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!guruResponse.ok) {
+        throw new Error("Gagal mengambil data guru");
+      }
+
+      const guruData = await guruResponse.json();
+
+      if (guruData.results.length === 0) {
+        throw new Error("Data guru tidak ditemukan");
+      }
+
+      // Cek jadwal presensi aktif
+      const schedule = await getActiveSchedule("guru");
+      if (!schedule) {
+        setError("Tidak ada jadwal presensi yang aktif saat ini");
+        return;
+      }
+
+      // Cek waktu presensi
+      const presenceTime = isWithinPresenceTime(schedule);
+      if (!presenceTime.isValid) {
+        const formatTime = (time) => {
+          return time.substring(0, 5) + " WIB";
+        };
+        let alertMessage = `Jadwal presensi masuk: ${formatTime(
+          schedule.jam_masuk
+        )} - ${formatTime(schedule.batas_jam_masuk)}\n
+        Jadwal presensi pulang: ${formatTime(
+          schedule.jam_pulang
+        )} - ${formatTime(schedule.batas_jam_pulang)}`;
+        setError(alertMessage);
+        return;
+      }
+
+      // Cek status presensi hari ini
+      const today = new Date().toISOString().split("T")[0];
+      const checkResponse = await fetch(
+        `http://localhost:1337/api/presensi-gurus?filters[guru][id][$eq]=${guruData.results[0].id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!checkResponse.ok) {
+        const errorData = await checkResponse.json().catch(() => ({
+          error: { message: "Gagal mengecek status presensi" },
+        }));
+        throw new Error(
+          errorData.error?.message || "Gagal mengecek status presensi"
+        );
+      }
+
+      const checkResult = await checkResponse.json();
+      if (checkResult.data.length > 0) {
+        setError(
+          `${guruData.results[0].nama} sudah melakukan presensi ${presenceTime.type} hari ini`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Jika semua validasi berhasil, lanjutkan login
+      onLogin({
+        role: "guru",
+        data: {
+          ...guruData.results[0],
+          token: token,
+        },
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      setError(error.message || "Terjadi kesalahan saat login");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
