@@ -153,7 +153,7 @@ export function LoginForm({ className, onLogin, ...props }) {
 
       // Ambil data guru berdasarkan email menggunakan endpoint content-manager API
       const guruResponse = await fetch(
-        `http://localhost:1337/content-manager/collection-types/api::guru-pegawai.guru-pegawai?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
+        `http://localhost:1337/content-manager/collection-types/api::guru.guru?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

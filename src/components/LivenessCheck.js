@@ -356,6 +356,9 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           confirmButtonColor: "#3085d6",
         }).then((result) => {
           if (result.isConfirmed) {
+            // Hapus cookie jwtToken sebelum reload
+            document.cookie =
+              "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             window.location.reload();
           }
         });
