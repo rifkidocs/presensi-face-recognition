@@ -115,7 +115,7 @@ export function LoginForm({ className, onLogin, ...props }) {
 
   const handleOtherRoleSubmit = async (e) => {
     e.preventDefault();
-    if (selectedRole !== "guru") {
+    if (selectedRole !== "guru" && selectedRole !== "pegawai") {
       onLogin({
         role: selectedRole,
         data: null,
@@ -151,9 +151,11 @@ export function LoginForm({ className, onLogin, ...props }) {
       const loginData = await loginResponse.json();
       const token = loginData.data.token;
 
-      // Ambil data guru berdasarkan email menggunakan endpoint content-manager API
-      const guruResponse = await fetch(
-        `http://localhost:1337/content-manager/collection-types/api::guru.guru?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
+      // Ambil data berdasarkan peran dan email
+      const endpoint =
+        selectedRole === "guru" ? "guru.guru" : "pegawai.pegawai";
+      const response = await fetch(
+        `http://localhost:1337/content-manager/collection-types/api::${endpoint}?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -161,18 +163,18 @@ export function LoginForm({ className, onLogin, ...props }) {
         }
       );
 
-      if (!guruResponse.ok) {
-        throw new Error("Gagal mengambil data guru");
+      if (!response.ok) {
+        throw new Error(`Gagal mengambil data ${selectedRole}`);
       }
 
-      const guruData = await guruResponse.json();
+      const userData = await response.json();
 
-      if (guruData.results.length === 0) {
-        throw new Error("Data guru tidak ditemukan");
+      if (userData.results.length === 0) {
+        throw new Error(`Data ${selectedRole} tidak ditemukan`);
       }
 
       // Cek jadwal presensi aktif
-      const schedule = await getActiveSchedule("guru");
+      const schedule = await getActiveSchedule(selectedRole);
       if (!schedule) {
         setError("Tidak ada jadwal presensi yang aktif saat ini");
         return;
@@ -196,8 +198,10 @@ export function LoginForm({ className, onLogin, ...props }) {
 
       // Cek status presensi hari ini
       const today = new Date().toISOString().split("T")[0];
+      const presenceEndpoint =
+        selectedRole === "guru" ? "presensi-gurus" : "presensi-pegawais";
       const checkResponse = await fetch(
-        `http://localhost:1337/api/presensi-gurus?filters[guru][id][$eq]=${guruData.results[0].id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+        `http://localhost:1337/api/${presenceEndpoint}?filters[${selectedRole}][id][$eq]=${userData.results[0].id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
         {
           method: "GET",
           headers: {
@@ -218,7 +222,7 @@ export function LoginForm({ className, onLogin, ...props }) {
       const checkResult = await checkResponse.json();
       if (checkResult.data.length > 0) {
         setError(
-          `${guruData.results[0].nama} sudah melakukan presensi ${presenceTime.type} hari ini`
+          `${userData.results[0].nama} sudah melakukan presensi ${presenceTime.type} hari ini`
         );
         setLoading(false);
         return;
@@ -226,9 +230,9 @@ export function LoginForm({ className, onLogin, ...props }) {
 
       // Jika semua validasi berhasil, lanjutkan login
       onLogin({
-        role: "guru",
+        role: selectedRole,
         data: {
-          ...guruData.results[0],
+          ...userData.results[0],
           token: token,
         },
       });

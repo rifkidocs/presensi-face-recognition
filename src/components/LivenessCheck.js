@@ -92,11 +92,29 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
           return;
         }
 
-        // Cek apakah guru sudah presensi hari ini sesuai dengan jenis presensi yang berlaku
+        // Cek apakah pengguna sudah presensi hari ini sesuai dengan jenis presensi yang berlaku
         const today = new Date().toISOString().split("T")[0];
-        const endpoint =
-          userData.role === "siswa" ? "presensi-siswas" : "presensi-gurus";
-        const filterField = userData.role === "siswa" ? "siswa" : "guru";
+        let endpoint = "";
+        let filterField = "";
+
+        // Tentukan endpoint dan filter berdasarkan role
+        switch (userData.role) {
+          case "siswa":
+            endpoint = "presensi-siswas";
+            filterField = "siswa";
+            break;
+          case "guru":
+            endpoint = "presensi-gurus";
+            filterField = "guru";
+            break;
+          case "pegawai":
+            endpoint = "presensi-pegawais";
+            filterField = "pegawai";
+            break;
+          default:
+            throw new Error("Role tidak valid");
+        }
+
         const checkResponse = await fetch(
           `http://localhost:1337/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
@@ -272,8 +290,26 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         const today = new Date().toISOString().split("T")[0];
 
         // Lanjutkan dengan menyimpan data presensi
-        const endpoint = getEndpoint(userData.role);
-        const filterField = getFilterField(userData.role);
+        let endpoint = "";
+        let filterField = "";
+
+        // Tentukan endpoint dan filter berdasarkan role
+        switch (userData.role) {
+          case "siswa":
+            endpoint = "presensi-siswas";
+            filterField = "siswa";
+            break;
+          case "guru":
+            endpoint = "presensi-gurus";
+            filterField = "guru";
+            break;
+          case "pegawai":
+            endpoint = "presensi-pegawais";
+            filterField = "pegawai";
+            break;
+          default:
+            throw new Error("Role tidak valid");
+        }
         const checkResponse = await fetch(
           `http://localhost:1337/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
@@ -310,7 +346,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
             foto_absen: {
               id: fotoId,
             },
-            [userData.role === "siswa" ? "siswa" : "guru"]: {
+            [userData.role]: {
               id: userData.data.id,
             },
           },
