@@ -32,39 +32,60 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 
-const data = {
-  user: {
-    name: "Admin",
-    email: "admin@example.com",
-    avatar: "/avatars/admin.jpg",
-  },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboardIcon,
-    },
-    {
-      title: "Kelola Siswa",
-      url: "/dashboard/siswa",
-      icon: UsersIcon,
-    },
-    {
-      title: "Presensi Guru",
-      url: "/dashboard/presensi-guru",
-      icon: ClipboardListIcon,
-    },
-    {
-      title: "Presensi Siswa",
-      url: "/dashboard/presensi-siswa",
-      icon: ClipboardListIcon,
-    },
-  ],
-  navSecondary: [],
-  documents: [],
-};
+export function AppSidebar({ userData, ...props }) {
+  const isKepalaSekolah = userData?.roles?.some(
+    (role) => role.name === "Kepala Sekolah"
+  );
 
-export function AppSidebar({ ...props }) {
+  const navMain = isKepalaSekolah
+    ? [
+        {
+          title: "Dashboard",
+          url: "/dashboard",
+          icon: LayoutDashboardIcon,
+        },
+        {
+          title: "Presensi Siswa",
+          url: "/dashboard/presensi-siswa",
+          icon: ClipboardListIcon,
+        },
+        {
+          title: "Presensi Guru",
+          url: "/dashboard/presensi-guru",
+          icon: ClipboardListIcon,
+        },
+        {
+          title: "Presensi Pegawai",
+          url: "/dashboard/presensi-pegawai",
+          icon: ClipboardListIcon,
+        },
+      ]
+    : [
+        {
+          title: "Dashboard",
+          url: "/dashboard",
+          icon: LayoutDashboardIcon,
+        },
+        {
+          title: "Kelola Siswa",
+          url: "/dashboard/siswa",
+          icon: UsersIcon,
+        },
+        {
+          title: "Presensi Siswa",
+          url: "/dashboard/presensi-siswa",
+          icon: ClipboardListIcon,
+        },
+      ];
+
+  const user = {
+    name: userData?.firstname + " " + userData?.lastname || "Admin",
+    email: userData?.email || "admin@example.com",
+    avatar: "/avatars/admin.jpg",
+  };
+
+  const navSecondary = [];
+
   return (
     <Sidebar collapsible='offcanvas' {...props}>
       <SidebarHeader>
@@ -84,11 +105,11 @@ export function AppSidebar({ ...props }) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className='mt-auto' />
+        <NavMain items={navMain} />
+        <NavSecondary items={navSecondary} className='mt-auto' />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   );
