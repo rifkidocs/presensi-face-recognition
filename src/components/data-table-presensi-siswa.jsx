@@ -38,9 +38,11 @@ import {
   ColumnsIcon,
   GripVerticalIcon,
   LoaderIcon,
+  MapPinIcon,
   MoreVerticalIcon,
   PlusIcon,
   TrendingUpIcon,
+  UserIcon,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { toast } from "sonner";
@@ -49,6 +51,13 @@ import { z } from "zod";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ChartContainer,
   ChartTooltip,
@@ -188,22 +197,90 @@ const columns = [
   },
   {
     id: "actions",
-    cell: () => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant='ghost'
-            className='flex size-8 text-muted-foreground data-[state=open]:bg-muted'
-            size='icon'>
-            <MoreVerticalIcon />
-            <span className='sr-only'>Open menu</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-32'>
-          <DropdownMenuItem>Lihat Detail</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    ),
+    cell: ({ row }) => {
+      const [showDetail, setShowDetail] = React.useState(false);
+
+      return (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='ghost'
+                className='flex size-8 text-muted-foreground data-[state=open]:bg-muted'
+                size='icon'>
+                <MoreVerticalIcon />
+                <span className='sr-only'>Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end' className='w-32'>
+              <DropdownMenuItem onClick={() => setShowDetail(true)}>
+                Lihat Detail
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Dialog open={showDetail} onOpenChange={setShowDetail}>
+            <DialogContent className='sm:max-w-[425px]'>
+              <DialogHeader>
+                <DialogTitle>Detail Presensi Siswa</DialogTitle>
+                <DialogDescription>
+                  Informasi lengkap presensi siswa
+                </DialogDescription>
+              </DialogHeader>
+              <div className='grid gap-4 py-4'>
+                <div className='flex flex-col items-center gap-4'>
+                  <div className='relative h-32 w-32 overflow-hidden rounded-lg'>
+                    <img
+                      src={row.original.foto}
+                      alt={`Foto absen ${row.original.nama}`}
+                      className='h-full w-full object-cover'
+                    />
+                  </div>
+                </div>
+                <div className='grid gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <UserIcon className='h-4 w-4 text-muted-foreground' />
+                    <div className='grid gap-1'>
+                      <div className='text-sm font-medium'>
+                        {row.original.nama}
+                      </div>
+                      <div className='text-xs text-muted-foreground'>
+                        {row.original.nomor_induk}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <MapPinIcon className='h-4 w-4 text-muted-foreground' />
+                    <div className='grid gap-1'>
+                      <div className='text-sm font-medium'>Lokasi Presensi</div>
+                      <div className='font-mono text-xs'>
+                        {row.original.koordinat}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Badge
+                      variant={
+                        row.original.status === "Tervalidasi"
+                          ? "success"
+                          : "secondary"
+                      }
+                      className='flex gap-1 items-center'>
+                      {row.original.status === "Tervalidasi" ? (
+                        <CheckCircle2Icon className='h-3 w-3' />
+                      ) : (
+                        <LoaderIcon className='h-3 w-3' />
+                      )}
+                      {row.original.status}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      );
+    },
   },
 ];
 
