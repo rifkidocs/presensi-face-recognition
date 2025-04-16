@@ -3,6 +3,10 @@
 import * as React from "react";
 import {
   CheckCircle2Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
   LoaderIcon,
   MoreVerticalIcon,
   UserIcon,
@@ -10,6 +14,14 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +36,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function DataTablePegawai({ data }) {
+export function DataTablePegawai({ data: initialData }) {
+  const [data] = React.useState(() => initialData);
+  const [pagination, setPagination] = React.useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
   const columns = [
     {
       accessorKey: "nama",
@@ -172,6 +189,11 @@ export function DataTablePegawai({ data }) {
     },
   ];
 
+  const pageCount = Math.ceil(data.length / pagination.pageSize);
+  const start = pagination.pageIndex * pagination.pageSize;
+  const end = start + pagination.pageSize;
+  const currentPageData = data.slice(start, end);
+
   return (
     <div className='flex w-full flex-col justify-start gap-6'>
       <div className='relative flex flex-col gap-4 overflow-auto px-4 lg:px-6'>
@@ -189,7 +211,7 @@ export function DataTablePegawai({ data }) {
               </tr>
             </thead>
             <tbody className='bg-white divide-y divide-gray-200'>
-              {data.map((row, idx) => (
+              {currentPageData.map((row, idx) => (
                 <tr key={row.id}>
                   {columns.map((col) => (
                     <td
@@ -204,6 +226,90 @@ export function DataTablePegawai({ data }) {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className='flex items-center justify-between px-4'>
+          <div className='hidden flex-1 text-sm text-muted-foreground lg:flex'>
+            Showing {start + 1} to {Math.min(end, data.length)} of {data.length}{" "}
+            entries
+          </div>
+          <div className='flex w-full items-center gap-8 lg:w-fit'>
+            <div className='hidden items-center gap-2 lg:flex'>
+              <Label htmlFor='rows-per-page' className='text-sm font-medium'>
+                Rows per page
+              </Label>
+              <Select
+                value={`${pagination.pageSize}`}
+                onValueChange={(value) => {
+                  setPagination({
+                    pageIndex: 0,
+                    pageSize: Number(value),
+                  });
+                }}>
+                <SelectTrigger className='w-20' id='rows-per-page'>
+                  <SelectValue placeholder={pagination.pageSize} />
+                </SelectTrigger>
+                <SelectContent side='top'>
+                  {[10, 20, 30, 40, 50].map((pageSize) => (
+                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                      {pageSize}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className='flex w-fit items-center justify-center text-sm font-medium'>
+              Page {pagination.pageIndex + 1} of {pageCount}
+            </div>
+            <div className='ml-auto flex items-center gap-2 lg:ml-0'>
+              <Button
+                variant='outline'
+                className='hidden h-8 w-8 p-0 lg:flex'
+                onClick={() => setPagination({ ...pagination, pageIndex: 0 })}
+                disabled={pagination.pageIndex === 0}>
+                <span className='sr-only'>Go to first page</span>
+                <ChevronsLeftIcon />
+              </Button>
+              <Button
+                variant='outline'
+                className='size-8'
+                size='icon'
+                onClick={() =>
+                  setPagination({
+                    ...pagination,
+                    pageIndex: pagination.pageIndex - 1,
+                  })
+                }
+                disabled={pagination.pageIndex === 0}>
+                <span className='sr-only'>Go to previous page</span>
+                <ChevronLeftIcon />
+              </Button>
+              <Button
+                variant='outline'
+                className='size-8'
+                size='icon'
+                onClick={() =>
+                  setPagination({
+                    ...pagination,
+                    pageIndex: pagination.pageIndex + 1,
+                  })
+                }
+                disabled={pagination.pageIndex === pageCount - 1}>
+                <span className='sr-only'>Go to next page</span>
+                <ChevronRightIcon />
+              </Button>
+              <Button
+                variant='outline'
+                className='hidden size-8 lg:flex'
+                size='icon'
+                onClick={() =>
+                  setPagination({ ...pagination, pageIndex: pageCount - 1 })
+                }
+                disabled={pagination.pageIndex === pageCount - 1}>
+                <span className='sr-only'>Go to last page</span>
+                <ChevronsRightIcon />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

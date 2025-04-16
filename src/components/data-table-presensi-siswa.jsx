@@ -416,8 +416,17 @@ export function DataTable({ data: initialData }) {
         </div>
         <div className='flex items-center justify-between px-4'>
           <div className='hidden flex-1 text-sm text-muted-foreground lg:flex'>
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
+            Showing{" "}
+            {table.getState().pagination.pageIndex *
+              table.getState().pagination.pageSize +
+              1}{" "}
+            to{" "}
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) *
+                table.getState().pagination.pageSize,
+              table.getFilteredRowModel().rows.length
+            )}{" "}
+            of {table.getFilteredRowModel().rows.length} entries
           </div>
           <div className='flex w-full items-center gap-8 lg:w-fit'>
             <div className='hidden items-center gap-2 lg:flex'>
