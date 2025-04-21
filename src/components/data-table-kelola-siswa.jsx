@@ -67,24 +67,9 @@ import {
 
 const columns = [
   {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
+    id: "number",
+    header: "No",
+    cell: ({ row }) => <div className="text-left">{row.index + 1}</div>,
     enableSorting: false,
     enableHiding: false,
   },
@@ -144,6 +129,7 @@ const columns = [
   },
   {
     id: "actions",
+    header: "Aksi",
     cell: ({ row, table }) => {
       const [showDetail, setShowDetail] = React.useState(false);
       const [isRemoving, setIsRemoving] = React.useState(false);
@@ -184,10 +170,6 @@ const columns = [
             <DropdownMenuContent align='end' className='w-40'>
               <DropdownMenuItem onClick={() => setShowDetail(true)}>
                 Lihat Detail
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <FileEditIcon className="mr-2 h-4 w-4" />
-                Edit Siswa
               </DropdownMenuItem>
               {hasClass && (
                 <>
@@ -305,7 +287,6 @@ const columns = [
 
 export function DataTableKelolaSiswa({ data, title, kelasId }) {
   const router = useRouter();
-  const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState({});
   const [columnFilters, setColumnFilters] = React.useState([]);
   const [sorting, setSorting] = React.useState([]);
@@ -414,7 +395,6 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
     state: {
       sorting,
       columnVisibility,
-      rowSelection,
       columnFilters,
       pagination,
     },
@@ -422,8 +402,6 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
       removeStudentFromClass,
     },
     getRowId: (row) => row.id.toString(),
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
@@ -436,24 +414,24 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
 
   return (
     <div className='flex w-full flex-col justify-start gap-6'>
-      <div className='flex items-center justify-between px-4 lg:px-6'>
+      <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4 px-4 lg:px-6'>
         <div>
           <h3 className="text-lg font-medium">{title}</h3>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex flex-col sm:flex-row items-center gap-2'>
           <Input
             placeholder='Filter nama...'
             value={table.getColumn('nama')?.getFilterValue() || ''}
             onChange={(event) =>
               table.getColumn('nama')?.setFilterValue(event.target.value)
             }
-            className='max-w-sm'
+            className='w-full sm:max-w-sm'
           />
           {kelasId && (
             <Button 
               variant='outline' 
               size='sm' 
-              className='ml-auto h-8 lg:flex'
+              className='w-full sm:w-auto sm:ml-auto h-8'
               onClick={handleAddStudentClick}
             >
               <PlusIcon className='mr-2 h-4 w-4' />
@@ -462,7 +440,7 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='outline' size='sm' className='ml-auto h-8 lg:flex'>
+              <Button variant='outline' size='sm' className='w-full sm:w-auto sm:ml-auto h-8'>
                 <ChevronDownIcon className='h-4 w-4' />
                 <span className='ml-2'>Kolom</span>
               </Button>
@@ -489,7 +467,7 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
         </div>
       </div>
       <div className='relative flex flex-col gap-4 overflow-auto px-4 lg:px-6'>
-        <div className='overflow-hidden rounded-lg border'>
+        <div className='overflow-x-auto overflow-y-hidden rounded-lg border'>
           <Table>
             <TableHeader className='sticky top-0 z-10 bg-muted'>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -514,7 +492,7 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    data-state={row.getIsSelected() && "selected"}>
+                    data-state="">
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(
@@ -537,8 +515,8 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
             </TableBody>
           </Table>
         </div>
-        <div className='flex items-center justify-between px-4'>
-          <div className='hidden flex-1 text-sm text-muted-foreground lg:flex'>
+        <div className='flex flex-col sm:flex-row items-center justify-between gap-4 px-2 sm:px-4'>
+          <div className='hidden md:flex flex-1 text-sm text-muted-foreground'>
             Menampilkan{" "}
             {table.getState().pagination.pageIndex *
               table.getState().pagination.pageSize +
@@ -551,8 +529,8 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
             )}{" "}
             dari {table.getFilteredRowModel().rows.length} data
           </div>
-          <div className='flex w-full items-center gap-8 lg:w-fit'>
-            <div className='hidden items-center gap-2 lg:flex'>
+          <div className='flex w-full flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 lg:w-fit'>
+            <div className='hidden sm:flex items-center gap-2 lg:flex'>
               <Label htmlFor='rows-per-page' className='text-sm font-medium'>
                 Baris per halaman
               </Label>
@@ -575,14 +553,14 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className='flex w-fit items-center justify-center text-sm font-medium'>
+            <div className='flex w-full justify-center text-sm font-medium sm:w-fit'>
               Halaman {table.getState().pagination.pageIndex + 1} dari{" "}
               {table.getPageCount()}
             </div>
-            <div className='ml-auto flex items-center gap-2 lg:ml-0'>
+            <div className='flex w-full justify-center items-center gap-2 sm:ml-0 sm:w-fit'>
               <Button
                 variant='outline'
-                className='hidden h-8 w-8 p-0 lg:flex'
+                className='hidden md:flex h-8 w-8 p-0'
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}>
                 <span className='sr-only'>Ke halaman pertama</span>
@@ -608,7 +586,7 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
               </Button>
               <Button
                 variant='outline'
-                className='hidden size-8 lg:flex'
+                className='hidden md:flex size-8'
                 size='icon'
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}>
