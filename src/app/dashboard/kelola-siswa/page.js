@@ -131,6 +131,7 @@ export default async function Page() {
                   ? `Daftar Siswa ${kelasWali.nama_kelas}` 
                   : "Daftar Semua Siswa"
                 } 
+                kelasId={isWaliKelas ? kelasWali.id : null}
               />
             </div>
           </div>

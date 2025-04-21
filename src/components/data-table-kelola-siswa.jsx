@@ -10,6 +10,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import {
+  AlertCircleIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -17,11 +18,15 @@ import {
   ChevronsLeftIcon,
   ChevronsRightIcon,
   FileEditIcon,
+  Loader2Icon,
   MoreVerticalIcon,
   PlusIcon,
   TrashIcon,
   UserIcon,
+  XIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +34,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -138,8 +144,30 @@ const columns = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const [showDetail, setShowDetail] = React.useState(false);
+      const [isRemoving, setIsRemoving] = React.useState(false);
+      const [showConfirmRemove, setShowConfirmRemove] = React.useState(false);
+      const hasClass = !!row.original.kelas_sekolah;
+
+      // Get the removeStudentFromClass function from table meta
+      const { removeStudentFromClass } = table.options.meta || {};
+
+      const handleRemoveStudent = async () => {
+        if (removeStudentFromClass) {
+          setIsRemoving(true);
+          try {
+            await removeStudentFromClass(row.original.documentId);
+            toast.success('Siswa berhasil dihapus dari kelas');
+            setShowConfirmRemove(false);
+          } catch (error) {
+            console.error('Error removing student:', error);
+            toast.error('Gagal menghapus siswa dari kelas');
+          } finally {
+            setIsRemoving(false);
+          }
+        }
+      };
 
       return (
         <>
@@ -161,11 +189,18 @@ const columns = [
                 <FileEditIcon className="mr-2 h-4 w-4" />
                 Edit Siswa
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <TrashIcon className="mr-2 h-4 w-4" />
-                Hapus Siswa
-              </DropdownMenuItem>
+              {hasClass && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="text-destructive" 
+                    onClick={() => setShowConfirmRemove(true)}
+                  >
+                    <TrashIcon className="mr-2 h-4 w-4" />
+                    Hapus dari Kelas
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -221,13 +256,55 @@ const columns = [
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Confirm Remove Dialog */}
+          <Dialog open={showConfirmRemove} onOpenChange={setShowConfirmRemove}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Hapus Siswa dari Kelas</DialogTitle>
+                <DialogDescription>
+                  Apakah Anda yakin ingin menghapus siswa ini dari kelas? Tindakan ini tidak akan menghapus data siswa dari sistem.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center gap-4 py-3">
+                <AlertCircleIcon className="h-10 w-10 text-destructive" />
+                <div>
+                  <p className="font-medium">{row.original.nama}</p>
+                  <p className="text-sm text-muted-foreground">Kelas: {row.original.kelas_sekolah?.nama_kelas}</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowConfirmRemove(false)}>
+                  Batal
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleRemoveStudent}
+                  disabled={isRemoving}
+                >
+                  {isRemoving ? (
+                    <>
+                      <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                      Menghapus...
+                    </>
+                  ) : (
+                    <>
+                      <TrashIcon className="mr-2 h-4 w-4" />
+                      Hapus dari Kelas
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       );
     },
   },
 ];
 
-export function DataTableKelolaSiswa({ data, title }) {
+export function DataTableKelolaSiswa({ data, title, kelasId }) {
+  const router = useRouter();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState({});
   const [columnFilters, setColumnFilters] = React.useState([]);
@@ -236,6 +313,100 @@ export function DataTableKelolaSiswa({ data, title }) {
     pageIndex: 0,
     pageSize: 10,
   });
+
+  const [showAddStudentDialog, setShowAddStudentDialog] = React.useState(false);
+  const [availableStudents, setAvailableStudents] = React.useState([]);
+  const [isLoadingStudents, setIsLoadingStudents] = React.useState(false);
+  const [selectedStudent, setSelectedStudent] = React.useState("");
+  const [isAddingStudent, setIsAddingStudent] = React.useState(false);
+
+  // Function to remove student from class
+  const removeStudentFromClass = async (studentId) => {
+    const response = await fetch(`http://localhost:1337/api/siswas/${studentId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data: {
+          kelas_sekolah: null
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to remove student from class');
+    }
+
+    // Refresh the page to show updated data
+    router.refresh();
+  };
+
+  // Function to add student to class
+  const addStudentToClass = async () => {
+    if (!selectedStudent || !kelasId) return;
+
+    setIsAddingStudent(true);
+    try {
+      const response = await fetch(`http://localhost:1337/api/siswas/${selectedStudent}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            kelas_sekolah: kelasId
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add student to class');
+      }
+
+      toast.success('Siswa berhasil ditambahkan ke kelas');
+      setShowAddStudentDialog(false);
+      setSelectedStudent("");
+      
+      // Refresh the page to show updated data
+      router.refresh();
+    } catch (error) {
+      console.error('Error adding student:', error);
+      toast.error('Gagal menambahkan siswa ke kelas');
+    } finally {
+      setIsAddingStudent(false);
+    }
+  };
+
+  // Function to fetch students without a class
+  const fetchAvailableStudents = async () => {
+    setIsLoadingStudents(true);
+    try {
+      const response = await fetch(
+        "http://localhost:1337/api/siswas?filters[kelas_sekolah][$null]=true&populate=*",
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch available students');
+      }
+
+      const result = await response.json();
+      setAvailableStudents(result.data || []);
+    } catch (error) {
+      console.error('Error fetching available students:', error);
+      toast.error('Gagal memuat daftar siswa');
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  const handleAddStudentClick = () => {
+    setShowAddStudentDialog(true);
+    fetchAvailableStudents();
+  };
 
   const table = useReactTable({
     data,
@@ -246,6 +417,9 @@ export function DataTableKelolaSiswa({ data, title }) {
       rowSelection,
       columnFilters,
       pagination,
+    },
+    meta: {
+      removeStudentFromClass,
     },
     getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
@@ -275,10 +449,17 @@ export function DataTableKelolaSiswa({ data, title }) {
             }
             className='max-w-sm'
           />
-          <Button variant='outline' size='sm' className='ml-auto h-8 lg:flex'>
-            <PlusIcon className='mr-2 h-4 w-4' />
-            Tambah Siswa
-          </Button>
+          {kelasId && (
+            <Button 
+              variant='outline' 
+              size='sm' 
+              className='ml-auto h-8 lg:flex'
+              onClick={handleAddStudentClick}
+            >
+              <PlusIcon className='mr-2 h-4 w-4' />
+              Tambah Siswa
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant='outline' size='sm' className='ml-auto h-8 lg:flex'>
@@ -438,6 +619,69 @@ export function DataTableKelolaSiswa({ data, title }) {
           </div>
         </div>
       </div>
+
+      {/* Add Student Dialog */}
+      <Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Tambah Siswa ke Kelas</DialogTitle>
+            <DialogDescription>
+              Pilih siswa yang ingin ditambahkan ke kelas ini. Hanya siswa yang belum memiliki kelas yang ditampilkan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="student" className="text-right">
+                Siswa
+              </Label>
+              <div className="col-span-3">
+                {isLoadingStudents ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2Icon className="h-4 w-4 animate-spin" />
+                    Memuat daftar siswa...
+                  </div>
+                ) : availableStudents.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    Tidak ada siswa yang tersedia untuk ditambahkan.
+                  </div>
+                ) : (
+                  <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih siswa..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableStudents.map((student) => (
+                        <SelectItem key={student.documentId} value={student.documentId.toString()}>
+                          {student.nama} {student.nomor_induk_siswa ? `(${student.nomor_induk_siswa})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddStudentDialog(false)}>
+              Batal
+            </Button>
+            <Button 
+              type="submit" 
+              onClick={addStudentToClass} 
+              disabled={!selectedStudent || isAddingStudent || availableStudents.length === 0}
+            >
+              {isAddingStudent ? (
+                <>
+                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                  Menambahkan...
+                </>
+              ) : (
+                "Tambahkan Siswa"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
