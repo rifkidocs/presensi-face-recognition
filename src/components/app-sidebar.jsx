@@ -68,7 +68,7 @@ export function AppSidebar({ userData, ...props }) {
         },
         {
           title: "Kelola Siswa",
-          url: "/dashboard/siswa",
+          url: "/dashboard/kelola-siswa",
           icon: UsersIcon,
         },
         {
