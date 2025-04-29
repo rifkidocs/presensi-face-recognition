@@ -33,7 +33,7 @@ export function LoginForm({ className, onLogin, ...props }) {
     try {
       // Cek data siswa
       const response = await fetch(
-        `http://localhost:1337/api/siswas?populate=*&filters[nomor_induk_siswa][$eq]=${studentId}`
+        `${process.env.NEXT_PUBLIC_API_URL}/api/siswas?populate=*&filters[nomor_induk_siswa][$eq]=${studentId}`
       );
 
       if (!response.ok) {
@@ -78,7 +78,7 @@ export function LoginForm({ className, onLogin, ...props }) {
       // Cek status presensi hari ini
       const today = new Date().toISOString().split("T")[0];
       const checkResponse = await fetch(
-        `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${studentData.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/presensi-siswas?filters[siswa][id][$eq]=${studentData.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
         {
           method: "GET",
           headers: {
@@ -128,16 +128,19 @@ export function LoginForm({ className, onLogin, ...props }) {
 
     try {
       // Login ke admin panel
-      const loginResponse = await fetch("http://localhost:1337/admin/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: e.target.email.value,
-          password: e.target.password.value,
-        }),
-      });
+      const loginResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: e.target.email.value,
+            password: e.target.password.value,
+          }),
+        }
+      );
 
       if (!loginResponse.ok) {
         if (loginResponse.status === 429) {
@@ -155,7 +158,7 @@ export function LoginForm({ className, onLogin, ...props }) {
       const endpoint =
         selectedRole === "guru" ? "guru.guru" : "pegawai.pegawai";
       const response = await fetch(
-        `http://localhost:1337/content-manager/collection-types/api::${endpoint}?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
+        `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::${endpoint}?filters[$and][0][email][$eq]=${e.target.email.value}&populate=*`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -201,7 +204,7 @@ export function LoginForm({ className, onLogin, ...props }) {
       const presenceEndpoint =
         selectedRole === "guru" ? "presensi-gurus" : "presensi-pegawais";
       const checkResponse = await fetch(
-        `http://localhost:1337/api/${presenceEndpoint}?filters[${selectedRole}][id][$eq]=${userData.results[0].id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/${presenceEndpoint}?filters[${selectedRole}][id][$eq]=${userData.results[0].id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
         {
           method: "GET",
           headers: {

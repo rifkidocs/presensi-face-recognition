@@ -116,7 +116,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         }
 
         const checkResponse = await fetch(
-          `http://localhost:1337/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
             method: "GET",
             headers: {
@@ -270,10 +270,13 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
 
       try {
         // Upload file foto terlebih dahulu
-        const uploadResponse = await fetch("http://localhost:1337/api/upload", {
-          method: "POST",
-          body: formData,
-        });
+        const uploadResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
 
         if (!uploadResponse.ok) {
           throw new Error("Gagal mengupload foto");
@@ -311,7 +314,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
             throw new Error("Role tidak valid");
         }
         const checkResponse = await fetch(
-          `http://localhost:1337/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
           {
             method: "GET",
             headers: {
@@ -367,14 +370,17 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         }
 
         // Kirim data presensi
-        const response = await fetch(`http://localhost:1337/api/${endpoint}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(presenceData),
-        });
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(presenceData),
+          }
+        );
 
         if (!response.ok) {
           const errorData = await response.json();

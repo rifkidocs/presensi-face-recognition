@@ -26,7 +26,9 @@ export const useLocation = () => {
     try {
       setLoading(true);
       // Fetch location data from API
-      const response = await fetch("http://localhost:1337/api/lokasi-presensi");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/lokasi-presensi`
+      );
       const data = await response.json();
       const schoolData = data.data;
       setLocationData(schoolData);

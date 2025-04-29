@@ -13,11 +13,14 @@ export default async function Page() {
       throw new Error("Authentication token not found");
     }
 
-    const res = await fetch("http://localhost:1337/admin/users/me", {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/admin/users/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      }
+    );
 
     if (!res.ok) {
       throw new Error("Failed to fetch user data");
@@ -36,7 +39,7 @@ export default async function Page() {
     }
 
     const res = await fetch(
-      "http://localhost:1337/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=1&pageSize=10&sort=koordinat_absen%3AASC",
+      `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=1&pageSize=10&sort=koordinat_absen%3AASC`,
       {
         headers: {
           Authorization: `Bearer ${jwtToken}`,
@@ -57,7 +60,7 @@ export default async function Page() {
       jenis_absen: item.jenis_absen,
       koordinat: item.koordinat_absen,
       status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-      foto: `http://localhost:1337${
+      foto: `${process.env.NEXT_PUBLIC_API_URL}${
         item.foto_absen?.formats?.thumbnail?.url || ""
       }`,
     }));

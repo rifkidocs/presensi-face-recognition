@@ -3,7 +3,7 @@ export const checkTodayPresence = async (studentId) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     const response = await fetch(
-      `http://localhost:1337/api/presensi-siswas?filters[siswa][id][$eq]=${studentId}&filters[waktu_absen][$gte]=${today}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/presensi-siswas?filters[siswa][id][$eq]=${studentId}&filters[waktu_absen][$gte]=${today}`,
       {
         method: "GET",
         headers: {
@@ -28,7 +28,7 @@ export const checkTodayPresence = async (studentId) => {
 export const getActiveSchedule = async (role = "siswa") => {
   try {
     const response = await fetch(
-      `http://localhost:1337/api/jadwal-presensis?filters[jenis_presensi][$eq]=${role}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/jadwal-presensis?filters[jenis_presensi][$eq]=${role}`,
       {
         method: "GET",
         headers: {

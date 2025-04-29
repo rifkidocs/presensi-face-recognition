@@ -68,7 +68,7 @@ export const useFaceRecognition = () => {
 
       for (const fotoWajah of student.foto_wajah) {
         try {
-          const imageUrl = `http://localhost:1337${fotoWajah.url}`;
+          const imageUrl = `${process.env.NEXT_PUBLIC_API_URL}${fotoWajah.url}`;
           console.log("Loading image from:", imageUrl);
 
           const img = await faceapi.fetchImage(imageUrl);

@@ -11,11 +11,14 @@ export default async function Page() {
     if (!jwtToken) {
       throw new Error("Authentication token not found");
     }
-    const res = await fetch("http://localhost:1337/admin/users/me", {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/admin/users/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      }
+    );
     if (!res.ok) {
       throw new Error("Failed to fetch user data");
     }
@@ -30,7 +33,7 @@ export default async function Page() {
       throw new Error("Authentication token not found");
     }
     const res = await fetch(
-      "http://localhost:1337/api/presensi-pegawais?populate=*"
+      `${process.env.NEXT_PUBLIC_API_URL}/api/presensi-pegawais?populate=*`
     );
     if (!res.ok) {
       throw new Error("Failed to fetch presensi pegawai data");
@@ -46,7 +49,7 @@ export default async function Page() {
       foto:
         Array.isArray(item.foto_absen) &&
         item.foto_absen[0]?.formats?.thumbnail?.url
-          ? `http://localhost:1337${item.foto_absen[0].formats.thumbnail.url}`
+          ? `${process.env.NEXT_PUBLIC_API_URL}${item.foto_absen[0].formats.thumbnail.url}`
           : "",
     }));
   }

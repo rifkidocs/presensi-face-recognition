@@ -21,16 +21,19 @@ export default function DashboardLogin() {
     setError("");
 
     try {
-      const loginResponse = await fetch("http://localhost:1337/admin/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-      });
+      const loginResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/admin/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
+      );
 
       if (!loginResponse.ok) {
         throw new Error("Email atau password salah");

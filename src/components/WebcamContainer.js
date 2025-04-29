@@ -137,7 +137,7 @@ const WebCamContainer = () => {
                   userData.data.foto_wajah.length > 0 && (
                     <div className='flex-shrink-0'>
                       <Image
-                        src={`http://localhost:1337${userData.data.foto_wajah[0].formats.thumbnail.url}`}
+                        src={`${process.env.NEXT_PUBLIC_API_URL}${userData.data.foto_wajah[0].formats.thumbnail.url}`}
                         width={80}
                         height={80}
                         alt={userData.data.nama}

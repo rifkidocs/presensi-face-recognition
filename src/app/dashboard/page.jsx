@@ -16,11 +16,14 @@ export default async function Page() {
       throw new Error("Authentication token not found");
     }
 
-    const res = await fetch("http://localhost:1337/admin/users/me", {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/admin/users/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      }
+    );
 
     if (!res.ok) {
       throw new Error("Failed to fetch user data");

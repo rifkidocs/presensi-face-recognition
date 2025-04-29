@@ -15,11 +15,14 @@ export default async function Page() {
       throw new Error("Authentication token not found");
     }
 
-    const res = await fetch("http://localhost:1337/admin/users/me", {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/admin/users/me`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      }
+    );
 
     if (!res.ok) {
       throw new Error("Failed to fetch user data");
@@ -38,9 +41,12 @@ export default async function Page() {
     }
 
     // Get current user data (guru)
-    const res = await fetch("http://localhost:1337/api/gurus?populate=*", {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/gurus?populate=*`,
+      {
+        cache: "no-store",
+      }
+    );
 
     if (!res.ok) {
       throw new Error("Failed to fetch guru data");
@@ -58,8 +64,8 @@ export default async function Page() {
       throw new Error("Authentication token not found");
     }
 
-    let url = "http://localhost:1337/api/siswas?populate=*";
-    
+    let url = `${process.env.NEXT_PUBLIC_API_URL}/api/siswas?populate=*`;
+
     // If kelasId is provided, filter students by that class
     if (kelasId) {
       url += `&filters[kelas_sekolah][id][$eq]=${kelasId}`;
@@ -78,14 +84,14 @@ export default async function Page() {
   }
 
   const userData = await getUserData();
-  
+
   // Get guru data to check if they are a wali kelas
   const guruData = await getGuruData();
-  
+
   // Check if the guru is a wali kelas
   const isWaliKelas = !!guruData.wali_kelas;
   const kelasWali = guruData.wali_kelas;
-  
+
   // Get siswa data - if guru is wali kelas, get students from their class
   const siswaData = await getSiswaData(isWaliKelas ? kelasWali.id : null);
 
@@ -102,35 +108,38 @@ export default async function Page() {
                   Kelola Siswa
                 </h2>
               </div>
-              
+
               {!isWaliKelas ? (
-                <div className="px-4 lg:px-6">
+                <div className='px-4 lg:px-6'>
                   <Alert>
-                    <InfoIcon className="h-4 w-4" />
+                    <InfoIcon className='h-4 w-4' />
                     <AlertTitle>Perhatian</AlertTitle>
                     <AlertDescription>
-                      Anda tidak terdaftar sebagai wali kelas. Data yang ditampilkan adalah semua siswa.
+                      Anda tidak terdaftar sebagai wali kelas. Data yang
+                      ditampilkan adalah semua siswa.
                     </AlertDescription>
                   </Alert>
                 </div>
               ) : (
-                <div className="px-4 lg:px-6">
-                  <Alert variant="success">
-                    <CheckCircleIcon className="h-4 w-4" />
+                <div className='px-4 lg:px-6'>
+                  <Alert variant='success'>
+                    <CheckCircleIcon className='h-4 w-4' />
                     <AlertTitle>Informasi Wali Kelas</AlertTitle>
                     <AlertDescription>
-                      Anda adalah wali kelas dari {kelasWali.nama_kelas}. Data yang ditampilkan hanya siswa dari kelas tersebut.
+                      Anda adalah wali kelas dari {kelasWali.nama_kelas}. Data
+                      yang ditampilkan hanya siswa dari kelas tersebut.
                     </AlertDescription>
                   </Alert>
                 </div>
               )}
-              
-              <DataTableKelolaSiswa 
-                data={siswaData} 
-                title={isWaliKelas 
-                  ? `Daftar Siswa ${kelasWali.nama_kelas}` 
-                  : "Daftar Semua Siswa"
-                } 
+
+              <DataTableKelolaSiswa
+                data={siswaData}
+                title={
+                  isWaliKelas
+                    ? `Daftar Siswa ${kelasWali.nama_kelas}`
+                    : "Daftar Semua Siswa"
+                }
                 kelasId={isWaliKelas ? kelasWali.id : null}
               />
             </div>
