@@ -317,6 +317,14 @@ export function LoginForm({ className, onLogin, ...props }) {
                   {loading ? "Memproses..." : "Login"}
                 </Button>
               )}
+              
+              <div className="text-center">
+                <a href="/dashboard/login">
+                  <Button type="button" variant="outline" className="mt-2">
+                    Masuk ke Dashboard Admin
+                  </Button>
+                </a>
+              </div>
             </div>
           </form>
           <div className='relative bg-muted md:block'>

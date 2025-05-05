@@ -117,6 +117,14 @@ export default function DashboardLogin() {
               disabled={loading}>
               {loading ? "Memproses..." : "Login"}
             </Button>
+            
+            <div className="text-center mt-4">
+              <a href="/">
+                <Button type="button" variant="outline" className="w-full">
+                  Kembali ke Halaman Presensi
+                </Button>
+              </a>
+            </div>
           </form>
         </CardContent>
       </Card>
