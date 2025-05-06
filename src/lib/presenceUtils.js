@@ -51,6 +51,10 @@ export const getActiveSchedule = async (role = "siswa") => {
 
 // Fungsi untuk mengecek apakah waktu saat ini masih dalam rentang waktu presensi
 export const isWithinPresenceTime = (schedule) => {
+  if (!schedule) {
+    return { isValid: false, type: null };
+  }
+  
   const now = new Date();
   const currentTime =
     now.getHours().toString().padStart(2, "0") +
@@ -59,13 +63,23 @@ export const isWithinPresenceTime = (schedule) => {
     ":" +
     now.getSeconds().toString().padStart(2, "0");
 
+  // Pastikan kita memiliki objek schedule yang benar
+  const scheduleData = schedule.attributes ? schedule.attributes : schedule;
+  
+  // Pastikan semua properti yang dibutuhkan ada
+  if (!scheduleData.jam_masuk || !scheduleData.batas_jam_masuk || 
+      !scheduleData.jam_pulang || !scheduleData.batas_jam_pulang) {
+    console.error("Schedule data is incomplete:", scheduleData);
+    return { isValid: false, type: null };
+  }
+
   // Cek apakah waktu saat ini dalam rentang jam masuk atau pulang
   const isEntryTime =
-    currentTime >= schedule.jam_masuk &&
-    currentTime <= schedule.batas_jam_masuk;
+    currentTime >= scheduleData.jam_masuk &&
+    currentTime <= scheduleData.batas_jam_masuk;
   const isExitTime =
-    currentTime >= schedule.jam_pulang &&
-    currentTime <= schedule.batas_jam_pulang;
+    currentTime >= scheduleData.jam_pulang &&
+    currentTime <= scheduleData.batas_jam_pulang;
 
   if (!isEntryTime && !isExitTime) {
     return { isValid: false, type: null };

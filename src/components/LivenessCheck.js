@@ -286,7 +286,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         const fotoId = uploadResult[0].id; // Mengambil ID foto dari array response
 
         // Dapatkan jadwal dan tipe presensi yang aktif
-        const schedule = await getActiveSchedule("guru");
+        const schedule = await getActiveSchedule(userData.role);
         const presenceTime = isWithinPresenceTime(schedule);
 
         // Dapatkan tanggal hari ini

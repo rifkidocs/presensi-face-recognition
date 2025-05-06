@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { LoginForm } from "./login-form";
 import LivenessCheck from "./LivenessCheck";
 import { useFaceRecognition } from "../hooks/useFaceRecognition";
@@ -13,12 +13,15 @@ const WebCamContainer = () => {
   const [showLivenessCheck, setShowLivenessCheck] = useState(false);
   const [livenessVerified, setLivenessVerified] = useState(false);
   const [locationChecked, setLocationChecked] = useState(false);
+  const [livenessModelLoaded, setLivenessModelLoaded] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   const {
     modelsLoaded,
     faceRecognized,
     startFaceDetection,
     setFaceRecognized,
+    loadingPercentage: faceDetectionLoadingPercentage,
   } = useFaceRecognition();
 
   const {
@@ -42,20 +45,47 @@ const WebCamContainer = () => {
 
   const [userCoordinates, setUserCoordinates] = useState(null);
 
+  // Calculate overall model loading progress
+  useEffect(() => {
+    const faceProgress = faceDetectionLoadingPercentage || 0;
+    const livenessProgress = livenessModelLoaded ? 100 : 0;
+    setLoadingProgress(Math.floor((faceProgress + livenessProgress) / 2));
+  }, [faceDetectionLoadingPercentage, livenessModelLoaded]);
+
+  // Preload liveness detection model when component mounts
+  useEffect(() => {
+    const preloadLivenessModel = async () => {
+      try {
+        // This is a placeholder - in your actual implementation, 
+        // you would load any required models for liveness detection here
+        // For example: await LivenessCheck.preloadModels()
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setLivenessModelLoaded(true);
+      } catch (error) {
+        console.error("Error loading liveness model:", error);
+      }
+    };
+    
+    preloadLivenessModel();
+  }, []);
+
+  // Check location when user logs in
   useEffect(() => {
     if (isLoggedIn) {
       checkLocation();
       setLocationChecked(true);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, checkLocation]);
 
+  // Start webcam only when all models are loaded and user is logged in
   useEffect(() => {
-    if (modelsLoaded && isLoggedIn && !faceRecognized) {
+    const allModelsLoaded = modelsLoaded && livenessModelLoaded;
+    if (allModelsLoaded && isLoggedIn && !faceRecognized && !captureVideo) {
       startWebcam();
     }
-  }, [modelsLoaded, isLoggedIn, faceRecognized]);
+  }, [modelsLoaded, livenessModelLoaded, isLoggedIn, faceRecognized, captureVideo, startWebcam]);
 
-  const handleVideoOnPlay = async () => {
+  const handleVideoOnPlay = useCallback(async () => {
     // Re-check location before starting face detection
     try {
       const position = await new Promise((resolve, reject) => {
@@ -90,40 +120,67 @@ const WebCamContainer = () => {
       console.error("Error getting location:", error);
       closeWebcam();
     }
-  };
+  }, [videoRef, canvasRef, userData, isWithinRadius, closeWebcam, startFaceDetection, checkLocation, videoWidth, videoHeight]);
 
-  const handleCloseWebcam = () => {
+  const handleCloseWebcam = useCallback(() => {
     closeWebcam();
     setShowLivenessCheck(false);
     setLivenessVerified(false);
-  };
+  }, [closeWebcam]);
 
-  const handleLogin = (loginData) => {
+  const handleLogin = useCallback((loginData) => {
     setUserData(loginData);
     setIsLoggedIn(true);
     setFaceRecognized(false);
-  };
+  }, []);
+
+  const allModelsLoaded = useMemo(() => {
+    return modelsLoaded && livenessModelLoaded;
+  }, [modelsLoaded, livenessModelLoaded]);
+
+  const getCurrentLocation = useCallback(async () => {
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0,
+          }
+        );
+      });
+
+      const { latitude, longitude } = position.coords;
+      setUserCoordinates({ latitude, longitude });
+      await checkLocation();
+    } catch (error) {
+      console.error("Error getting location:", error);
+    }
+  }, [checkLocation]);
+
+  const handleStartFaceRecognition = useCallback(async () => {
+    try {
+      await getCurrentLocation();
+      if (isWithinRadius) {
+        setShowLivenessCheck(false);
+        setLivenessVerified(false);
+        setFaceRecognized(false);
+        startWebcam();
+      }
+    } catch (error) {
+      console.error("Error starting face recognition:", error);
+    }
+  }, [getCurrentLocation, isWithinRadius, startWebcam]);
 
   return (
     <div className='min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center py-8 space-y-8 w-full'>
-      {showLivenessCheck && (
-        <LivenessCheck
-          userData={userData}
-          onVerificationComplete={(success) => {
-            setLivenessVerified(success);
-            if (success) {
-              setTimeout(() => {
-                closeWebcam();
-              }, 1500);
-            }
-          }}
-        />
-      )}
-
       {!isLoggedIn ? (
         <LoginForm onLogin={handleLogin} />
       ) : (
         <div className='w-full max-w-4xl flex flex-col items-center space-y-8'>
+          {/* User Information Card */}
           <div className='bg-gray-800 p-6 rounded-xl w-full max-w-md'>
             <h2 className='text-xl font-semibold mb-4'>
               {userData.role === "siswa"
@@ -189,27 +246,7 @@ const WebCamContainer = () => {
             <div className='space-y-4'>
               <div className='flex justify-between items-center'>
                 <button
-                  onClick={async () => {
-                    try {
-                      const position = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(
-                          resolve,
-                          reject,
-                          {
-                            enableHighAccuracy: true,
-                            timeout: 5000,
-                            maximumAge: 0,
-                          }
-                        );
-                      });
-
-                      const { latitude, longitude } = position.coords;
-                      setUserCoordinates({ latitude, longitude });
-                      await checkLocation();
-                    } catch (error) {
-                      console.error("Error getting location:", error);
-                    }
-                  }}
+                  onClick={getCurrentLocation}
                   className='bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl transition'>
                   {locationLoading ? "Memuat..." : "Reload Lokasi"}
                 </button>
@@ -222,46 +259,33 @@ const WebCamContainer = () => {
                 </span>
               </div>
 
+              {!allModelsLoaded && (
+                <div className="mt-4">
+                  <div className="w-full bg-gray-700 rounded-full h-4 mb-2">
+                    <div 
+                      className="bg-blue-500 h-4 rounded-full transition-all duration-300" 
+                      style={{ width: `${loadingProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-center text-sm text-gray-300">
+                    Loading model pengenalan wajah... {loadingProgress}%
+                  </p>
+                </div>
+              )}
+
               <div>
                 {!captureVideo ? (
                   <button
-                    onClick={async () => {
-                      try {
-                        const position = await new Promise(
-                          (resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(
-                              resolve,
-                              reject,
-                              {
-                                enableHighAccuracy: true,
-                                timeout: 5000,
-                                maximumAge: 0,
-                              }
-                            );
-                          }
-                        );
-
-                        const { latitude, longitude } = position.coords;
-                        setUserCoordinates({ latitude, longitude });
-
-                        await checkLocation();
-                        if (isWithinRadius) {
-                          setShowLivenessCheck(false);
-                          setLivenessVerified(false);
-                          setFaceRecognized(false);
-                          startWebcam();
-                        }
-                      } catch (error) {
-                        console.error("Error getting location:", error);
-                      }
-                    }}
-                    disabled={!modelsLoaded || !isWithinRadius}
+                    onClick={handleStartFaceRecognition}
+                    disabled={!allModelsLoaded || !isWithinRadius}
                     className={`text-white px-4 py-2 rounded-xl transition w-full ${
-                      isWithinRadius
+                      isWithinRadius && allModelsLoaded
                         ? "bg-green-500 hover:bg-green-400"
                         : "bg-gray-500 cursor-not-allowed"
                     }`}>
-                    Mulai Pengenalan Wajah
+                    {allModelsLoaded 
+                      ? "Mulai Pengenalan Wajah" 
+                      : "Menunggu model selesai dimuat..."}
                   </button>
                 ) : (
                   <button
@@ -274,23 +298,43 @@ const WebCamContainer = () => {
             </div>
           </div>
 
-          {captureVideo && (
-            <div className='relative border-4 border-gray-700 rounded-lg overflow-hidden'>
-              <video
-                ref={videoRef}
-                width={videoWidth}
-                height={videoHeight}
-                onPlay={handleVideoOnPlay}
-                className='rounded-lg'
+          {/* Webcam and Liveness Container - Below User Card */}
+          <div className="w-full max-w-md flex flex-col items-center space-y-6">
+            {captureVideo && (
+              <div className='relative border-4 border-gray-700 rounded-lg overflow-hidden'>
+                <video
+                  ref={videoRef}
+                  width={videoWidth}
+                  height={videoHeight}
+                  onPlay={handleVideoOnPlay}
+                  className='rounded-lg'
+                  playsInline
+                  muted
+                  autoPlay
+                />
+                <canvas
+                  ref={canvasRef}
+                  className='absolute top-0 left-0'
+                  width={videoWidth}
+                  height={videoHeight}
+                />
+              </div>
+            )}
+
+            {showLivenessCheck && (
+              <LivenessCheck
+                userData={userData}
+                onVerificationComplete={(success) => {
+                  setLivenessVerified(success);
+                  if (success) {
+                    setTimeout(() => {
+                      closeWebcam();
+                    }, 1500);
+                  }
+                }}
               />
-              <canvas
-                ref={canvasRef}
-                className='absolute top-0 left-0'
-                width={videoWidth}
-                height={videoHeight}
-              />
-            </div>
-          )}
+            )}
+          </div>
 
           <button
             onClick={() => {
