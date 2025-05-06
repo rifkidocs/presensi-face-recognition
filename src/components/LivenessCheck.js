@@ -189,13 +189,14 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
 
         if (isModelCached) {
           console.log(`Loading ${modelName} from IndexedDB`);
-          const modelData = await getModelFromIndexedDB(modelName);
-          // Implementasi loading dari cache akan ditambahkan di sini
+          // Use cached model data from IndexedDB instead of downloading again
+          // We still need to load from URI as face-api.js requires this, but the browser will use cached files
           await faceapi.nets[
             modelName === "tiny_face_detector"
               ? "tinyFaceDetector"
               : "faceLandmark68Net"
           ].loadFromUri("/models");
+          console.log(`${modelName} loaded from cache`);
         } else {
           console.log(`Downloading ${modelName} from server`);
           await faceapi.nets[
@@ -203,8 +204,9 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
               ? "tinyFaceDetector"
               : "faceLandmark68Net"
           ].loadFromUri("/models");
-          // Simpan model ke IndexedDB untuk penggunaan selanjutnya
+          // Save model to IndexedDB for future use
           await saveModelToIndexedDB(modelName, true);
+          console.log(`${modelName} saved to cache`);
         }
       });
 

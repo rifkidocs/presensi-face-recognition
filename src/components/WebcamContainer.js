@@ -6,6 +6,8 @@ import LivenessCheck from "./LivenessCheck";
 import { useFaceRecognition } from "../hooks/useFaceRecognition";
 import { useWebcam } from "../hooks/useWebcam";
 import { useLocation } from "../hooks/useLocation";
+import * as faceapi from "face-api.js";
+import { checkModelInIndexedDB, saveModelToIndexedDB } from "../lib/indexedDB";
 
 const WebCamContainer = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -22,6 +24,8 @@ const WebCamContainer = () => {
     startFaceDetection,
     setFaceRecognized,
     loadingPercentage: faceDetectionLoadingPercentage,
+    faceDetectionProgress,
+    isFaceDetecting,
   } = useFaceRecognition();
 
   const {
@@ -33,6 +37,9 @@ const WebCamContainer = () => {
     videoWidth,
     videoHeight,
     setCaptureVideo,
+    cameraReady,
+    loadingCamera,
+    updateVideoDimensions
   } = useWebcam();
 
   const {
@@ -41,6 +48,8 @@ const WebCamContainer = () => {
     isWithinRadius,
     loading: locationLoading,
     checkLocation,
+    distance,
+    maxRadius
   } = useLocation();
 
   const [userCoordinates, setUserCoordinates] = useState(null);
@@ -56,13 +65,46 @@ const WebCamContainer = () => {
   useEffect(() => {
     const preloadLivenessModel = async () => {
       try {
-        // This is a placeholder - in your actual implementation, 
-        // you would load any required models for liveness detection here
-        // For example: await LivenessCheck.preloadModels()
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Check if liveness detection models are already in IndexedDB
+        const modelsToPreload = ["tiny_face_detector", "face_landmark_68"];
+        let allCached = true;
+        
+        for (const model of modelsToPreload) {
+          const isCached = await checkModelInIndexedDB(model);
+          if (!isCached) {
+            allCached = false;
+            break;
+          }
+        }
+        
+        // If all models are cached, set as loaded
+        if (allCached) {
+          console.log("All liveness detection models found in cache");
+          setLivenessModelLoaded(true);
+          return;
+        }
+        
+        // Otherwise load the models silently in background
+        console.log("Preloading liveness detection models...");
+        
+        // Load specific models required for liveness detection
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+          faceapi.nets.faceLandmark68Net.loadFromUri("/models")
+        ]);
+        
+        // Save models to IndexedDB
+        for (const model of modelsToPreload) {
+          await saveModelToIndexedDB(model, true);
+        }
+        
+        console.log("Liveness detection models preloaded successfully");
         setLivenessModelLoaded(true);
       } catch (error) {
-        console.error("Error loading liveness model:", error);
+        console.error("Error preloading liveness models:", error);
+        // Even if there's an error, set as loaded after a timeout
+        // to allow user to continue with the app
+        setTimeout(() => setLivenessModelLoaded(true), 3000);
       }
     };
     
@@ -139,6 +181,11 @@ const WebCamContainer = () => {
   }, [modelsLoaded, livenessModelLoaded]);
 
   const getCurrentLocation = useCallback(async () => {
+    // Prevent multiple clicks while loading
+    if (locationLoading) {
+      return;
+    }
+    
     try {
       const position = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
@@ -158,9 +205,14 @@ const WebCamContainer = () => {
     } catch (error) {
       console.error("Error getting location:", error);
     }
-  }, [checkLocation]);
+  }, [checkLocation, locationLoading]);
 
   const handleStartFaceRecognition = useCallback(async () => {
+    // Prevent multiple clicks
+    if (locationLoading || !allModelsLoaded || !isWithinRadius) {
+      return;
+    }
+    
     try {
       await getCurrentLocation();
       if (isWithinRadius) {
@@ -172,7 +224,38 @@ const WebCamContainer = () => {
     } catch (error) {
       console.error("Error starting face recognition:", error);
     }
-  }, [getCurrentLocation, isWithinRadius, startWebcam]);
+  }, [getCurrentLocation, isWithinRadius, startWebcam, locationLoading, allModelsLoaded]);
+
+  useEffect(() => {
+    if (captureVideo && videoRef.current && canvasRef.current) {
+      // Handler for when video dimensions change or when the video plays
+      const updateCanvasDimensions = () => {
+        if (videoRef.current && canvasRef.current) {
+          const videoRect = videoRef.current.getBoundingClientRect();
+          canvasRef.current.width = videoRect.width;
+          canvasRef.current.height = videoRect.height;
+        }
+      };
+
+      // Set initial dimensions
+      updateCanvasDimensions();
+
+      // Listen for resize events on window
+      window.addEventListener('resize', updateCanvasDimensions);
+      
+      // Listen for video playing/loaded events
+      videoRef.current.addEventListener('play', updateCanvasDimensions);
+      videoRef.current.addEventListener('loadedmetadata', updateCanvasDimensions);
+
+      return () => {
+        window.removeEventListener('resize', updateCanvasDimensions);
+        if (videoRef.current) {
+          videoRef.current.removeEventListener('play', updateCanvasDimensions);
+          videoRef.current.removeEventListener('loadedmetadata', updateCanvasDimensions);
+        }
+      };
+    }
+  }, [captureVideo, videoRef, canvasRef]);
 
   return (
     <div className='min-h-screen bg-gray-900 text-white flex flex-col justify-center items-center py-8 space-y-8 w-full'>
@@ -226,7 +309,7 @@ const WebCamContainer = () => {
                     ? "Anda berada dalam area presensi."
                     : "Anda berada di luar area presensi. Silakan pindah ke lokasi yang ditentukan."}
                 </p>
-                {userCoordinates && (
+                {userCoordinates && distance !== null && (
                   <div className='text-sm'>
                     <p>
                       Koordinat Anda: {userCoordinates.latitude.toFixed(6)},{" "}
@@ -238,6 +321,21 @@ const WebCamContainer = () => {
                         {locationData.longitude}
                       </p>
                     )}
+                    <div className="flex items-center mt-2">
+                      <div className="flex-1 bg-gray-200 h-2 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${isWithinRadius ? 'bg-green-700' : 'bg-red-600'}`}
+                          style={{ width: `${Math.min(100, (distance / (maxRadius || 100)) * 100)}%` }}
+                        ></div>
+                      </div>
+                      <span className="ml-2 font-bold">
+                        {distance ? `${distance.toFixed(0)}m` : "?"}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-1">
+                      Jarak dengan lokasi: <strong>{distance ? `${distance.toFixed(0)} meter` : "-"}</strong> 
+                      (Radius maksimal: <strong>{maxRadius} meter</strong>)
+                    </p>
                   </div>
                 )}
               </div>
@@ -247,8 +345,19 @@ const WebCamContainer = () => {
               <div className='flex justify-between items-center'>
                 <button
                   onClick={getCurrentLocation}
-                  className='bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl transition'>
-                  {locationLoading ? "Memuat..." : "Reload Lokasi"}
+                  disabled={locationLoading}
+                  className={`bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-xl transition ${
+                    locationLoading ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}>
+                  {locationLoading ? (
+                    <span className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Memuat...
+                    </span>
+                  ) : "Reload Lokasi"}
                 </button>
 
                 <span
@@ -261,14 +370,23 @@ const WebCamContainer = () => {
 
               {!allModelsLoaded && (
                 <div className="mt-4">
-                  <div className="w-full bg-gray-700 rounded-full h-4 mb-2">
+                  <div className="w-full bg-gray-700 rounded-full h-4 mb-2 overflow-hidden">
                     <div 
-                      className="bg-blue-500 h-4 rounded-full transition-all duration-300" 
+                      className="bg-blue-500 h-4 rounded-full transition-all duration-300 relative"
                       style={{ width: `${loadingProgress}%` }}
-                    />
+                    >
+                      <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
+                      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+                        {loadingProgress}%
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-center text-sm text-gray-300">
-                    Loading model pengenalan wajah... {loadingProgress}%
+                  <p className="text-center text-sm text-gray-300 animate-pulse">
+                    {loadingProgress < 25 ? "Menyiapkan model pengenalan wajah..." : 
+                     loadingProgress < 50 ? "Memuat model deteksi wajah..." : 
+                     loadingProgress < 75 ? "Memuat model face landmark..." : 
+                     loadingProgress < 100 ? "Hampir selesai..." : 
+                     "Model siap digunakan!"}
                   </p>
                 </div>
               )}
@@ -302,22 +420,57 @@ const WebCamContainer = () => {
           <div className="w-full max-w-md flex flex-col items-center space-y-6">
             {captureVideo && (
               <div className='relative border-4 border-gray-700 rounded-lg overflow-hidden'>
+                {loadingCamera && (
+                  <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
+                    <div className="text-center p-4">
+                      <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                      <p className="text-white">Memulai kamera...</p>
+                    </div>
+                  </div>
+                )}
+                
                 <video
                   ref={videoRef}
                   width={videoWidth}
                   height={videoHeight}
                   onPlay={handleVideoOnPlay}
-                  className='rounded-lg'
+                  className='rounded-lg w-full h-auto'
                   playsInline
                   muted
                   autoPlay
+                  onLoadedMetadata={updateVideoDimensions}
                 />
+                
                 <canvas
                   ref={canvasRef}
-                  className='absolute top-0 left-0'
-                  width={videoWidth}
-                  height={videoHeight}
+                  className='absolute top-0 left-0 w-full h-full'
+                  style={{ pointerEvents: 'none' }}
                 />
+                
+                {isFaceDetecting && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-white text-sm">Verifikasi Wajah:</span>
+                      <span className="text-white text-sm font-bold">{Math.round(faceDetectionProgress)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-3">
+                      <div 
+                        className="bg-green-500 h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${faceDetectionProgress}%` }}
+                      >
+                        {faceDetectionProgress > 0 && (
+                          <div className="h-full w-2 bg-white absolute right-0 animate-pulse"></div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-300 mt-1 text-center">
+                      {faceDetectionProgress < 30 ? "Tahan wajah anda tepat di depan kamera..." : 
+                       faceDetectionProgress < 60 ? "Sedang memverifikasi identitas..." : 
+                       faceDetectionProgress < 90 ? "Hampir selesai..." : 
+                       "Verifikasi berhasil!"}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

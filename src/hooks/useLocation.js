@@ -1,11 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export const useLocation = () => {
   const [locationData, setLocationData] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [isWithinRadius, setIsWithinRadius] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [distance, setDistance] = useState(null);
+  const [maxRadius, setMaxRadius] = useState(null);
+  const [lastCheckTime, setLastCheckTime] = useState(null);
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371e3; // Earth's radius in meters
@@ -22,7 +25,18 @@ export const useLocation = () => {
     return R * c; // Distance in meters
   };
 
-  const checkLocation = async () => {
+  // Use useCallback to avoid recreation of this function on every render
+  const checkLocation = useCallback(async () => {
+    // Prevent checking again if we've checked recently (within 3 seconds)
+    const now = Date.now();
+    if (lastCheckTime && now - lastCheckTime < 3000) {
+      console.log("Skipping location check, too soon since last check");
+      return;
+    }
+    
+    // Set the last check time
+    setLastCheckTime(now);
+    
     try {
       setLoading(true);
       // Fetch location data from API
@@ -46,15 +60,21 @@ export const useLocation = () => {
       const schoolLat = parseFloat(schoolData.latitude);
       const schoolLon = parseFloat(schoolData.longitude);
       const radius = parseFloat(schoolData.radius_meter);
+      
+      // Set the maximum radius
+      setMaxRadius(radius);
 
-      const distance = calculateDistance(
+      const calculatedDistance = calculateDistance(
         userLat,
         userLon,
         schoolLat,
         schoolLon
       );
+      
+      // Set the distance
+      setDistance(calculatedDistance);
 
-      console.log("Distance to school:", distance.toFixed(2), "meters");
+      console.log("Distance to school:", calculatedDistance.toFixed(2), "meters");
       console.log("Allowed radius:", radius, "meters");
       console.log("User location:", userLat.toFixed(6), userLon.toFixed(6));
       console.log(
@@ -63,7 +83,7 @@ export const useLocation = () => {
         schoolLon.toFixed(6)
       );
 
-      const withinRadius = distance <= radius;
+      const withinRadius = calculatedDistance <= radius;
       console.log("Within radius:", withinRadius);
 
       setIsWithinRadius(withinRadius);
@@ -76,10 +96,11 @@ export const useLocation = () => {
           : "Gagal mendapatkan lokasi. Pastikan GPS aktif dan coba lagi."
       );
       setIsWithinRadius(false);
+      setDistance(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [lastCheckTime]);
 
   return {
     locationData,
@@ -87,5 +108,7 @@ export const useLocation = () => {
     isWithinRadius,
     loading,
     checkLocation,
+    distance,
+    maxRadius
   };
 };
