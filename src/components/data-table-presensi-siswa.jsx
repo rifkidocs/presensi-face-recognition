@@ -43,10 +43,19 @@ import {
   PlusIcon,
   TrendingUpIcon,
   UserIcon,
+  DownloadIcon,
+  FileDownIcon,
+  CalendarIcon,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { toast } from "sonner";
 import { z } from "zod";
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
+import { id } from "date-fns/locale";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Badge } from "@/components/ui/badge";
@@ -114,9 +123,9 @@ export const schema = z.object({
 });
 
 // Create a separate component for the drag handle
-function DragHandle({ id }) {
+function DragHandle({ row }) {
   const { attributes, listeners } = useSortable({
-    id,
+    id: row.original.id,
   });
 
   return (
@@ -134,9 +143,16 @@ function DragHandle({ id }) {
 
 const columns = [
   {
+    id: "drag",
+    size: 20,
+    minSize: 20,
+    maxSize: 20,
+    cell: ({ row }) => <DragHandle row={row} />,
+  },
+  {
     accessorKey: "nama",
     header: "Nama Siswa",
-    cell: ({ row }) => <div className='font-medium'>{row.original.nama}</div>,
+    cell: ({ row }) => <div className="font-medium">{row.getValue("nama")}</div>,
   },
   {
     accessorKey: "nomor_induk",
@@ -146,7 +162,10 @@ const columns = [
   {
     accessorKey: "waktu_absen",
     header: "Waktu Absen",
-    cell: ({ row }) => <div>{row.original.waktu_absen}</div>,
+    cell: ({ row }) => {
+      const date = parseISO(row.getValue("waktu_absen"));
+      return <div>{format(date, "dd MMMM yyyy HH:mm")}</div>;
+    },
   },
   {
     accessorKey: "jenis_absen",
@@ -308,7 +327,7 @@ function DraggableRow({ row }) {
   );
 }
 
-export function DataTable({ data: initialData }) {
+export function DataTableSiswa({ data: initialData }) {
   const [data, setData] = React.useState(() => initialData);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState({});
@@ -318,6 +337,9 @@ export function DataTable({ data: initialData }) {
     pageIndex: 0,
     pageSize: 10,
   });
+  const [timeFilter, setTimeFilter] = React.useState("all");
+  const [dateRange, setDateRange] = React.useState([null, null]);
+  const [startDate, endDate] = dateRange;
   const sortableId = React.useId();
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -327,8 +349,54 @@ export function DataTable({ data: initialData }) {
 
   const dataIds = React.useMemo(() => data?.map(({ id }) => id) || [], [data]);
 
+  const filteredData = React.useMemo(() => {
+    let filtered = [...data];
+
+    if (timeFilter !== "all") {
+      const now = new Date();
+      switch (timeFilter) {
+        case "daily":
+          const today = format(now, "yyyy-MM-dd");
+          filtered = filtered.filter(item => {
+            const itemDate = parseISO(item.waktu_absen);
+            return format(itemDate, "yyyy-MM-dd") === today;
+          });
+          break;
+        case "weekly":
+          const weekStart = startOfWeek(now, { locale: id });
+          const weekEnd = endOfWeek(now, { locale: id });
+          filtered = filtered.filter(item => {
+            const itemDate = parseISO(item.waktu_absen);
+            return isWithinInterval(itemDate, { start: weekStart, end: weekEnd });
+          });
+          break;
+        case "monthly":
+          const monthStart = startOfMonth(now);
+          const monthEnd = endOfMonth(now);
+          filtered = filtered.filter(item => {
+            const itemDate = parseISO(item.waktu_absen);
+            return isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
+          });
+          break;
+        case "dateRange":
+          if (dateRange.startDate && dateRange.endDate) {
+            filtered = filtered.filter(item => {
+              const itemDate = parseISO(item.waktu_absen);
+              return isWithinInterval(itemDate, {
+                start: dateRange.startDate,
+                end: dateRange.endDate,
+              });
+            });
+          }
+          break;
+      }
+    }
+
+    return filtered;
+  }, [data, timeFilter, dateRange]);
+
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
     state: {
       sorting,
@@ -363,9 +431,165 @@ export function DataTable({ data: initialData }) {
     }
   }
 
+  const handleExport = (exportFormat) => {
+    const exportData = filteredData.map(item => ({
+      "Nama Siswa": item.nama,
+      "Waktu Absen": format(parseISO(item.waktu_absen), "dd MMMM yyyy HH:mm"),
+      "Jenis Absen": item.jenis_absen,
+      "Koordinat": item.koordinat,
+      "Status": item.status
+    }));
+
+    if (exportFormat === "excel") {
+      // Convert to CSV
+      const headers = Object.keys(exportData[0]);
+      const csvContent = [
+        headers.join(","),
+        ...exportData.map(row => 
+          headers.map(header => {
+            const value = row[header];
+            // Escape commas and quotes in the value
+            return `"${String(value).replace(/"/g, '""')}"`;
+          }).join(",")
+        )
+      ].join("\n");
+
+      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+    } else if (exportFormat === "pdf") {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(16);
+      doc.text("Laporan Presensi Siswa", 14, 15);
+      
+      // Add date range if selected
+      if (timeFilter === "custom" && startDate && endDate) {
+        doc.setFontSize(10);
+        doc.text(
+          `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(endDate, "dd MMMM yyyy")}`,
+          14,
+          25
+        );
+      } else if (timeFilter !== "all") {
+        doc.setFontSize(10);
+        const now = new Date();
+        let periodText = "";
+        switch (timeFilter) {
+          case "daily":
+            periodText = `Tanggal: ${format(now, "dd MMMM yyyy")}`;
+            break;
+          case "weekly":
+            periodText = `Minggu: ${format(startOfWeek(now, { locale: id }), "dd MMMM yyyy")} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
+            break;
+          case "monthly":
+            periodText = `Bulan: ${format(now, "MMMM yyyy")}`;
+            break;
+        }
+        doc.text(periodText, 14, 25);
+      }
+
+      // Add table
+      autoTable(doc, {
+        startY: timeFilter !== "all" ? 30 : 20,
+        head: [Object.keys(exportData[0])],
+        body: exportData.map(item => Object.values(item)),
+        theme: "grid",
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontSize: 8,
+          fontStyle: "bold",
+        },
+        columnStyles: {
+          0: { cellWidth: 40 }, // Nama Siswa
+          1: { cellWidth: 35 }, // Waktu Absen
+          2: { cellWidth: 25 }, // Jenis Absen
+          3: { cellWidth: 35 }, // Koordinat
+          4: { cellWidth: 25 }, // Status
+        },
+      });
+
+      // Save the PDF
+      doc.save(`presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    }
+  };
+
+  const pageCount = Math.ceil(filteredData.length / pagination.pageSize);
+  const start = pagination.pageIndex * pagination.pageSize;
+  const end = start + pagination.pageSize;
+  const currentPageData = filteredData.slice(start, end);
+
   return (
     <div className='flex w-full flex-col justify-start gap-6'>
       <div className='relative flex flex-col gap-4 overflow-auto px-4 lg:px-6'>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-4">
+              <Label htmlFor="time-filter">Filter Periode:</Label>
+              <Select
+                value={timeFilter}
+                onValueChange={(value) => {
+                  setTimeFilter(value);
+                  if (value !== "custom") {
+                    setDateRange([null, null]);
+                  }
+                }}>
+                <SelectTrigger className="w-[180px]" id="time-filter">
+                  <SelectValue placeholder="Pilih periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  <SelectItem value="daily">Harian</SelectItem>
+                  <SelectItem value="weekly">Mingguan</SelectItem>
+                  <SelectItem value="monthly">Bulanan</SelectItem>
+                  <SelectItem value="custom">Rentang Tanggal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {timeFilter === "custom" && (
+              <div className="flex items-center gap-2">
+                <DatePicker
+                  selected={startDate}
+                  onChange={(dates) => setDateRange(dates)}
+                  startDate={startDate}
+                  endDate={endDate}
+                  selectsRange
+                  locale={id}
+                  dateFormat="dd/MM/yyyy"
+                  className="flex h-9 w-[240px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholderText="Pilih rentang tanggal"
+                />
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <DownloadIcon className="h-4 w-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleExport("excel")}>
+                <FileDownIcon className="mr-2 h-4 w-4" />
+                Export Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                <FileDownIcon className="mr-2 h-4 w-4" />
+                Export PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className='overflow-hidden rounded-lg border'>
           <DndContext
             collisionDetection={closestCenter}

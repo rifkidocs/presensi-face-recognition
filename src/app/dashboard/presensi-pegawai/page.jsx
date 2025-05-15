@@ -29,28 +29,36 @@ export default async function Page() {
   async function getPresensiPegawai() {
     const cookieStore = cookies();
     const jwtToken = cookieStore.get("jwtToken")?.value;
+
     if (!jwtToken) {
       throw new Error("Authentication token not found");
     }
+
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/presensi-pegawais?populate=*`
+      `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-pegawai.presensi-pegawai?page=1&pageSize=10&sort=koordinat_absen%3AASC`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      }
     );
+
     if (!res.ok) {
       throw new Error("Failed to fetch presensi pegawai data");
     }
+
     const data = await res.json();
-    return data.data.map((item) => ({
+    return data.results.map((item) => ({
       id: item.id,
-      nama: item.pegawai?.nama || "-",
-      waktu_absen: new Date(item.waktu_absen).toLocaleString(),
+      nama: item.pegawai.nama,
+      nomor_induk: item.pegawai.nomor_induk_pegawai,
+      waktu_absen: item.waktu_absen,
       jenis_absen: item.jenis_absen,
       koordinat: item.koordinat_absen,
       status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-      foto:
-        Array.isArray(item.foto_absen) &&
-        item.foto_absen[0]?.formats?.thumbnail?.url
-          ? `${process.env.NEXT_PUBLIC_API_URL}${item.foto_absen[0].formats.thumbnail.url}`
-          : "",
+      foto: `${process.env.NEXT_PUBLIC_API_URL}${
+        item.foto_absen?.formats?.thumbnail?.url || ""
+      }`,
     }));
   }
 

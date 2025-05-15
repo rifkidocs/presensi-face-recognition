@@ -1,5 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar";
-import { DataTable } from "@/components/data-table-presensi-siswa";
+import { DataTableSiswa } from "@/components/data-table-presensi-siswa";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { cookies } from "next/headers";
@@ -56,7 +56,7 @@ export default async function Page() {
       id: item.id,
       nama: item.siswa.nama,
       nomor_induk: item.siswa.nomor_induk_siswa,
-      waktu_absen: new Date(item.waktu_absen).toLocaleString(),
+      waktu_absen: item.waktu_absen,
       jenis_absen: item.jenis_absen,
       koordinat: item.koordinat_absen,
       status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
@@ -82,7 +82,7 @@ export default async function Page() {
                   Presensi Siswa
                 </h2>
               </div>
-              <DataTable data={presensiData} />
+              <DataTableSiswa data={presensiData} />
             </div>
           </div>
         </div>

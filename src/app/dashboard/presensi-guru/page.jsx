@@ -29,31 +29,36 @@ export default async function Page() {
   async function getPresensiGuru() {
     const cookieStore = cookies();
     const jwtToken = cookieStore.get("jwtToken")?.value;
+
     if (!jwtToken) {
       throw new Error("Authentication token not found");
     }
+
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/presensi-gurus?populate=*`
+      `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-guru.presensi-guru?page=1&pageSize=10&sort=koordinat_absen%3AASC`,
+      {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      }
     );
+
     if (!res.ok) {
       throw new Error("Failed to fetch presensi guru data");
     }
+
     const data = await res.json();
-    return data.data.map((item) => ({
+    return data.results.map((item) => ({
       id: item.id,
-      nama: item.guru?.nama || "-",
-      waktu_absen: new Date(item.waktu_absen).toLocaleString(),
+      nama: item.guru.nama,
+      nomor_induk: item.guru.nomor_induk_guru,
+      waktu_absen: item.waktu_absen,
       jenis_absen: item.jenis_absen,
       koordinat: item.koordinat_absen,
-      status:
-        item.is_validated === true
-          ? "Tervalidasi"
-          : item.is_validated === false
-          ? "Tidak Valid"
-          : "Belum Tervalidasi",
-      foto: item.foto_absen?.formats?.thumbnail?.url
-        ? `${process.env.NEXT_PUBLIC_API_URL}${item.foto_absen.formats.thumbnail.url}`
-        : "",
+      status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
+      foto: `${process.env.NEXT_PUBLIC_API_URL}${
+        item.foto_absen?.formats?.thumbnail?.url || ""
+      }`,
     }));
   }
 
