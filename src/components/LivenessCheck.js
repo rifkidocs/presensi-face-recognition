@@ -21,10 +21,14 @@ import {
   detectAndDrawFace,
 } from "../lib/faceDetection";
 
+// Komponen untuk melakukan verifikasi liveness (keberadaan manusia)
 const LivenessCheck = ({ onVerificationComplete, userData }) => {
+  // Referensi untuk elemen video dan canvas
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const photoCanvasRef = useRef(null); // Canvas tambahan untuk menyimpan foto tanpa landmark
+
+  // State untuk mengelola proses verifikasi
   const [currentInstructionIndex, setCurrentInstructionIndex] = useState(null);
   const [completedInstructions, setCompletedInstructions] = useState([]);
   const [isLivenessVerified, setIsLivenessVerified] = useState(false);
@@ -32,23 +36,25 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const [flashing, setFlashing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [isSubmitted, setIsSubmitted] = useState(false); // State untuk mencegah pengiriman ganda
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [faceMatcher, setFaceMatcher] = useState(null);
   const [faceVerificationFailed, setFaceVerificationFailed] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [faceDescriptor, setFaceDescriptor] = useState(null);
   const [faceDetectionProgress, setFaceDetectionProgress] = useState(0);
-  const [verificationStatus, setVerificationStatus] = useState(''); // Tambah state untuk status verifikasi
-  const REQUIRED_DETECTIONS = 3; // Kurangi dari default untuk proses yang lebih cepat
-  const MIN_DETECTION_TIME_MS = 1000; // Kurangi waktu deteksi menjadi 1 detik
+  const [verificationStatus, setVerificationStatus] = useState('');
 
-  // Movement thresholds
+  // Konstanta untuk konfigurasi deteksi
+  const REQUIRED_DETECTIONS = 3;
+  const MIN_DETECTION_TIME_MS = 1000;
+
+  // Threshold untuk deteksi gerakan
   const nodThreshold = 70;
   const headTurnThreshold = 45;
   const eyebrowThreshold = 25;
 
-  // Refs for flags and counters
+  // Referensi untuk flag dan counter
   const eyebrowRaiseDone = useRef(false);
   const headTurnDone = useRef(false);
   const nodDone = useRef(false);
@@ -58,6 +64,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const minNoseX = useRef(null);
   const initialEyebrowY = useRef(null);
 
+  // Daftar instruksi untuk verifikasi liveness
   const instructions = [
     {
       text: "Silakan angkat kepala Anda",
@@ -76,6 +83,7 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
     },
   ];
 
+  // Hook untuk mengelola lokasi
   const {
     locationData,
     locationError,

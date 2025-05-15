@@ -9,7 +9,9 @@ import { useLocation } from "../hooks/useLocation";
 import * as faceapi from "face-api.js";
 import { checkModelInIndexedDB, saveModelToIndexedDB } from "../lib/indexedDB";
 
+// Komponen utama untuk menangani webcam dan proses pengenalan wajah
 const WebCamContainer = () => {
+  // State untuk mengelola status login dan data pengguna
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userData, setUserData] = useState(null);
   const [showLivenessCheck, setShowLivenessCheck] = useState(false);
@@ -18,6 +20,7 @@ const WebCamContainer = () => {
   const [livenessModelLoaded, setLivenessModelLoaded] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
 
+  // Hook untuk pengenalan wajah
   const {
     modelsLoaded,
     faceRecognized,
@@ -28,6 +31,7 @@ const WebCamContainer = () => {
     isFaceDetecting,
   } = useFaceRecognition();
 
+  // Hook untuk mengelola webcam
   const {
     captureVideo,
     videoRef,
@@ -42,6 +46,7 @@ const WebCamContainer = () => {
     updateVideoDimensions
   } = useWebcam();
 
+  // Hook untuk mengelola lokasi
   const {
     locationData,
     locationError,
@@ -52,6 +57,7 @@ const WebCamContainer = () => {
     maxRadius
   } = useLocation();
 
+  // State untuk menyimpan koordinat pengguna
   const [userCoordinates, setUserCoordinates] = useState(null);
 
   // Calculate overall model loading progress

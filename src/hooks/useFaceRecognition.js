@@ -5,7 +5,9 @@ import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl";
 import { checkModelInIndexedDB, saveModelToIndexedDB } from "../lib/indexedDB";
 
+// Hook kustom untuk menangani pengenalan wajah
 export const useFaceRecognition = () => {
+  // State untuk mengelola status model dan deteksi wajah
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [detectInterval, setDetectInterval] = useState(null);
   const [faceRecognized, setFaceRecognized] = useState(false);
@@ -13,11 +15,12 @@ export const useFaceRecognition = () => {
   const [faceDetectionProgress, setFaceDetectionProgress] = useState(0);
   const [isFaceDetecting, setIsFaceDetecting] = useState(false);
 
-  // Increase these thresholds for more strict detection
-  const REQUIRED_DETECTIONS = 10; // Increased from 3 to 10
-  const MINIMUM_CONFIDENCE = 0.6; // Higher confidence threshold (0-1)
-  const MIN_DETECTION_TIME_MS = 3000; // Minimum 3 seconds of continuous detection
+  // Konstanta untuk konfigurasi deteksi wajah
+  const REQUIRED_DETECTIONS = 10; // Jumlah deteksi wajah yang diperlukan
+  const MINIMUM_CONFIDENCE = 0.6; // Tingkat kepercayaan minimum untuk pengenalan wajah
+  const MIN_DETECTION_TIME_MS = 3000; // Waktu minimum deteksi wajah (3 detik)
   
+  // Inisialisasi backend TensorFlow.js saat komponen dimount
   useEffect(() => {
     const initializeBackend = async () => {
       await tf.setBackend("webgl");
@@ -26,11 +29,13 @@ export const useFaceRecognition = () => {
     };
     initializeBackend();
 
+    // Membersihkan interval saat komponen unmount
     return () => {
       if (detectInterval) clearInterval(detectInterval);
     };
   }, []);
 
+  // Fungsi untuk memuat model-model yang diperlukan
   const loadModels = async () => {
     const MODEL_URL = "/models";
     const modelConfigs = [
@@ -41,7 +46,7 @@ export const useFaceRecognition = () => {
     ];
 
     try {
-      // Check which models are already cached
+      // Memeriksa model yang sudah di-cache
       const modelStatuses = await Promise.all(
         modelConfigs.map(async ({ name }) => {
           const isCached = await checkModelInIndexedDB(name);
@@ -52,44 +57,44 @@ export const useFaceRecognition = () => {
       const totalModels = modelConfigs.length;
       let loadedModels = modelStatuses.filter(model => model.isCached).length;
       
-      // Update initial loading percentage based on cached models
+      // Memperbarui persentase loading berdasarkan model yang di-cache
       setLoadingPercentage(Math.floor((loadedModels / totalModels) * 100));
       
-      // Load all models (browser will use cache for already loaded models)
+      // Memuat semua model
       for (let i = 0; i < modelConfigs.length; i++) {
         const { name, net } = modelConfigs[i];
         const isCached = modelStatuses[i].isCached;
         
         try {
           if (isCached) {
-            console.log(`Model ${name} found in cache`);
+            console.log(`Model ${name} ditemukan di cache`);
           } else {
-            console.log(`Loading ${name} from server`);
+            console.log(`Memuat ${name} dari server`);
           }
           
-          // Load the model (cached or not)
+          // Memuat model (dari cache atau server)
           await net.loadFromUri(MODEL_URL);
           
-          // Save to IndexedDB if not already cached
+          // Menyimpan ke IndexedDB jika belum di-cache
           if (!isCached) {
             await saveModelToIndexedDB(name, true);
           }
           
-          // Update loading percentage
+          // Memperbarui persentase loading
           loadedModels++;
           setLoadingPercentage(Math.floor((loadedModels / totalModels) * 100));
           
         } catch (err) {
-          console.error(`Error loading ${name}:`, err);
+          console.error(`Error memuat ${name}:`, err);
           throw err;
         }
       }
 
       setModelsLoaded(true);
       setLoadingPercentage(100);
-      console.log("All face recognition models loaded successfully");
+      console.log("Semua model pengenalan wajah berhasil dimuat");
     } catch (error) {
-      console.error("Error loading face recognition models:", error);
+      console.error("Error memuat model pengenalan wajah:", error);
       setModelsLoaded(false);
     }
   };
@@ -101,7 +106,7 @@ export const useFaceRecognition = () => {
       !userData.data.foto_wajah ||
       userData.data.foto_wajah.length === 0
     ) {
-      console.error("No face images available for recognition");
+      console.error("Tidak ada gambar wajah yang tersedia untuk pengenalan");
       return [];
     }
 
@@ -112,7 +117,7 @@ export const useFaceRecognition = () => {
       for (const fotoWajah of student.foto_wajah) {
         try {
           const imageUrl = `${process.env.NEXT_PUBLIC_API_URL}${fotoWajah.url}`;
-          console.log("Loading image from:", imageUrl);
+          console.log("Memuat gambar dari:", imageUrl);
 
           const img = await faceapi.fetchImage(imageUrl);
           const detection = await faceapi
@@ -122,10 +127,10 @@ export const useFaceRecognition = () => {
 
           if (detection) {
             descriptions.push(detection.descriptor);
-            console.log("Face descriptor extracted successfully");
+            console.log("Deskriptor wajah berhasil diekstrak");
           }
         } catch (error) {
-          console.warn(`Error loading image for ${student.nama}:`, error);
+          console.warn(`Error memuat gambar untuk ${student.nama}:`, error);
         }
       }
 
@@ -135,7 +140,7 @@ export const useFaceRecognition = () => {
       );
       return [labeledDescriptor].filter((desc) => desc.descriptors.length > 0);
     } catch (error) {
-      console.error("Error in loadLabeledImages:", error);
+      console.error("Error dalam loadLabeledImages:", error);
       return [];
     }
   };
