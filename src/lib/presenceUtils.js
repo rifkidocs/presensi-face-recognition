@@ -81,12 +81,16 @@ export const isWithinPresenceTime = (schedule) => {
     currentTime >= scheduleData.jam_pulang &&
     currentTime <= scheduleData.batas_jam_pulang;
 
-  if (!isEntryTime && !isExitTime) {
-    return { isValid: false, type: null };
+  // Cek keterlambatan
+  const isLate = currentTime > scheduleData.batas_jam_masuk;
+
+  if (isEntryTime) {
+    return { isValid: true, type: "masuk" };
+  } else if (isExitTime) {
+    return { isValid: true, type: "pulang" };
+  } else if (isLate) {
+    return { isValid: true, type: "telat" };
   }
 
-  return {
-    isValid: true,
-    type: isEntryTime ? "masuk" : "pulang",
-  };
+  return { isValid: false, type: null };
 };
