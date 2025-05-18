@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ComboboxDemo } from "@/components/ui/combobox";
 import { getActiveSchedule, isWithinPresenceTime } from "../lib/presenceUtils";
+import Image from "next/image";
 
 export function LoginForm({ className, onLogin, ...props }) {
   const [selectedRole, setSelectedRole] = React.useState("");
@@ -249,41 +250,42 @@ export function LoginForm({ className, onLogin, ...props }) {
 
   return (
     <div className={cn("flex flex-col gap-6 max-w-4xl", className)} {...props}>
-      <Card className='overflow-hidden'>
-        <CardContent className='grid p-0 md:grid-cols-2'>
+      <Card className="overflow-hidden">
+        <CardContent className="grid p-0 md:grid-cols-2">
           <form
-            className='p-6 md:p-8'
+            className="p-6 md:p-8"
             onSubmit={
               selectedRole === "siswa"
                 ? handleStudentIdSubmit
                 : handleOtherRoleSubmit
-            }>
-            <div className='flex flex-col gap-6'>
-              <div className='flex flex-col items-center text-center'>
-                <h1 className='text-2xl font-bold'>Selamat Datang</h1>
-                <p className='text-balance text-muted-foreground'>
-                  Sistem Presensi MTSS AR-ROUDLOH
+            }
+          >
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col items-center text-center">
+                <h1 className="text-2xl font-bold">Selamat Datang</h1>
+                <p className="text-balance text-muted-foreground">
+                  Sistem Presensi MTSS ROUDLOH
                 </p>
               </div>
 
-              <div className='grid gap-2'>
+              <div className="grid gap-2">
                 <Label>Pilih Peran</Label>
                 <ComboboxDemo onRoleChange={handleRoleChange} />
               </div>
 
               {error && (
-                <div className='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative'>
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
                   {error}
                 </div>
               )}
 
               {selectedRole === "siswa" ? (
-                <div className='grid gap-2'>
-                  <Label htmlFor='studentId'>Nomor Induk Siswa</Label>
+                <div className="grid gap-2">
+                  <Label htmlFor="studentId">Nomor Induk Siswa</Label>
                   <Input
-                    id='studentId'
-                    type='text'
-                    placeholder='Masukkan NIS'
+                    id="studentId"
+                    type="text"
+                    placeholder="Masukkan NIS"
                     value={studentId}
                     onChange={(e) => setStudentId(e.target.value)}
                     disabled={loading}
@@ -293,31 +295,31 @@ export function LoginForm({ className, onLogin, ...props }) {
               ) : (
                 selectedRole && (
                   <>
-                    <div className='grid gap-2'>
-                      <Label htmlFor='email'>Email</Label>
+                    <div className="grid gap-2">
+                      <Label htmlFor="email">Email</Label>
                       <Input
-                        id='email'
-                        type='email'
-                        placeholder='m@example.com'
+                        id="email"
+                        type="email"
+                        placeholder="m@example.com"
                         required
                       />
                     </div>
-                    <div className='grid gap-2'>
-                      <div className='flex items-center'>
-                        <Label htmlFor='password'>Password</Label>
+                    <div className="grid gap-2">
+                      <div className="flex items-center">
+                        <Label htmlFor="password">Password</Label>
                       </div>
-                      <Input id='password' type='password' required />
+                      <Input id="password" type="password" required />
                     </div>
                   </>
                 )
               )}
 
               {selectedRole && (
-                <Button type='submit' className='w-full' disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Memproses..." : "Login"}
                 </Button>
               )}
-              
+
               <div className="text-center">
                 <a href="/dashboard/login">
                   <Button type="button" variant="outline" className="mt-2">
@@ -327,12 +329,8 @@ export function LoginForm({ className, onLogin, ...props }) {
               </div>
             </div>
           </form>
-          <div className='relative bg-muted md:block'>
-            <img
-              src='/placeholder.svg'
-              alt='Image'
-              className='absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale'
-            />
+          <div className="relative bg-muted md:block">
+            <Image src="/logo.jpg" alt="Image" height={250} width={250} className="w-full" />
           </div>
         </CardContent>
       </Card>

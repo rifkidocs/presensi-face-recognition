@@ -64,7 +64,7 @@ export default function DashboardLogin() {
                 Dashboard Login
               </h1>
               <p className='text-balance text-muted-foreground'>
-                Sistem Presensi MTSS AR-ROUDLOH
+                Sistem Presensi MTSS ROUDLOH
               </p>
             </div>
 
