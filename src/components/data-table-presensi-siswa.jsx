@@ -50,7 +50,16 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { toast } from "sonner";
 import { z } from "zod";
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns";
+import {
+  format,
+  subDays,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  parseISO,
+  isWithinInterval,
+} from "date-fns";
 import { id } from "date-fns/locale";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -152,7 +161,9 @@ const columns = [
   {
     accessorKey: "nama",
     header: "Nama Siswa",
-    cell: ({ row }) => <div className="font-medium">{row.getValue("nama")}</div>,
+    cell: ({ row }) => (
+      <div className='font-medium'>{row.getValue("nama")}</div>
+    ),
   },
   {
     accessorKey: "nomor_induk",
@@ -327,8 +338,12 @@ function DraggableRow({ row }) {
   );
 }
 
-export function DataTableSiswa({ data: initialData, pagination: initialPagination, jwtToken }) {
-  const [data, setData] = React.useState(() => 
+export function DataTableSiswa({
+  data: initialData,
+  pagination: initialPagination,
+  jwtToken,
+}) {
+  const [data, setData] = React.useState(() =>
     initialData.map((item) => ({
       id: item.id,
       nama: item.siswa.nama,
@@ -368,7 +383,7 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
       switch (timeFilter) {
         case "daily":
           const today = format(now, "yyyy-MM-dd");
-          filtered = filtered.filter(item => {
+          filtered = filtered.filter((item) => {
             const itemDate = parseISO(item.waktu_absen);
             return format(itemDate, "yyyy-MM-dd") === today;
           });
@@ -376,26 +391,36 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
         case "weekly":
           const weekStart = startOfWeek(now, { locale: id });
           const weekEnd = endOfWeek(now, { locale: id });
-          filtered = filtered.filter(item => {
+          filtered = filtered.filter((item) => {
             const itemDate = parseISO(item.waktu_absen);
-            return isWithinInterval(itemDate, { start: weekStart, end: weekEnd });
+            return isWithinInterval(itemDate, {
+              start: weekStart,
+              end: weekEnd,
+            });
           });
           break;
         case "monthly":
           const monthStart = startOfMonth(now);
           const monthEnd = endOfMonth(now);
-          filtered = filtered.filter(item => {
+          filtered = filtered.filter((item) => {
             const itemDate = parseISO(item.waktu_absen);
-            return isWithinInterval(itemDate, { start: monthStart, end: monthEnd });
+            return isWithinInterval(itemDate, {
+              start: monthStart,
+              end: monthEnd,
+            });
           });
           break;
-        case "dateRange":
-          if (dateRange.startDate && dateRange.endDate) {
-            filtered = filtered.filter(item => {
+        case "custom":
+          if (startDate && endDate) {
+            // Mengatur waktu endDate ke 23:59:59 untuk mencakup seluruh hari
+            const endDateWithTime = new Date(endDate);
+            endDateWithTime.setHours(23, 59, 59, 999);
+
+            filtered = filtered.filter((item) => {
               const itemDate = parseISO(item.waktu_absen);
               return isWithinInterval(itemDate, {
-                start: dateRange.startDate,
-                end: dateRange.endDate,
+                start: startDate,
+                end: endDateWithTime,
               });
             });
           }
@@ -404,7 +429,7 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
     }
 
     return filtered;
-  }, [data, timeFilter, dateRange]);
+  }, [data, timeFilter, startDate, endDate]);
 
   const fetchData = async (page, pageSize) => {
     setIsLoading(true);
@@ -423,18 +448,20 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
       }
 
       const responseData = await res.json();
-      setData(responseData.results.map((item) => ({
-        id: item.id,
-        nama: item.siswa.nama,
-        nomor_induk: item.siswa.nomor_induk_siswa,
-        waktu_absen: item.waktu_absen,
-        jenis_absen: item.jenis_absen,
-        koordinat: item.koordinat_absen,
-        status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-        foto: `${process.env.NEXT_PUBLIC_API_URL}${
-          item.foto_absen?.formats?.thumbnail?.url || ""
-        }`,
-      })));
+      setData(
+        responseData.results.map((item) => ({
+          id: item.id,
+          nama: item.siswa.nama,
+          nomor_induk: item.siswa.nomor_induk_siswa,
+          waktu_absen: item.waktu_absen,
+          jenis_absen: item.jenis_absen,
+          koordinat: item.koordinat_absen,
+          status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
+          foto: `${process.env.NEXT_PUBLIC_API_URL}${
+            item.foto_absen?.formats?.thumbnail?.url || ""
+          }`,
+        }))
+      );
       setPagination(responseData.pagination);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -445,7 +472,7 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
   };
 
   const table = useReactTable({
-    data,
+    data: timeFilter !== "all" ? filteredData : data,
     columns,
     state: {
       sorting,
@@ -464,10 +491,14 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: (updater) => {
-      const newPagination = typeof updater === 'function' 
-        ? updater({ pageIndex: pagination.page - 1, pageSize: pagination.pageSize })
-        : updater;
-      
+      const newPagination =
+        typeof updater === "function"
+          ? updater({
+              pageIndex: pagination.page - 1,
+              pageSize: pagination.pageSize,
+            })
+          : updater;
+
       fetchData(newPagination.pageIndex + 1, newPagination.pageSize);
     },
     pageCount: pagination.pageCount,
@@ -493,85 +524,128 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
   const handleExport = async (exportFormat) => {
     setIsLoading(true);
     try {
-      // Fetch all data for export - set pageSize to a very large number to get all records
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?sort=waktu_absen:DESC&pageSize=10000`,
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
+      let dataToExport = [];
+
+      if (timeFilter !== "all") {
+        // Gunakan data yang sudah difilter jika ada filter periode aktif
+        dataToExport = filteredData.map((item) => ({
+          "Nama Siswa": item.nama,
+          NIS: item.nomor_induk,
+          "Waktu Absen": format(
+            parseISO(item.waktu_absen),
+            "dd MMMM yyyy HH:mm"
+          ),
+          "Jenis Absen": item.jenis_absen,
+          Koordinat: item.koordinat,
+          Status: item.status,
+        }));
+      } else {
+        // Fetch all data for export jika tidak ada filter
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?sort=waktu_absen:DESC&pageSize=10000`,
+          {
+            headers: {
+              Authorization: `Bearer ${jwtToken}`,
+            },
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch data for export");
         }
-      );
 
-      if (!res.ok) {
-        throw new Error("Failed to fetch data for export");
+        const responseData = await res.json();
+        dataToExport = responseData.results.map((item) => ({
+          "Nama Siswa": item.siswa.nama,
+          NIS: item.siswa.nomor_induk_siswa,
+          "Waktu Absen": format(
+            parseISO(item.waktu_absen),
+            "dd MMMM yyyy HH:mm"
+          ),
+          "Jenis Absen": item.jenis_absen,
+          Koordinat: item.koordinat_absen,
+          Status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
+        }));
       }
-
-      const responseData = await res.json();
-      const allData = responseData.results.map(item => ({
-        "Nama Siswa": item.siswa.nama,
-        "NIS": item.siswa.nomor_induk_siswa,
-        "Waktu Absen": format(parseISO(item.waktu_absen), "dd MMMM yyyy HH:mm"),
-        "Jenis Absen": item.jenis_absen,
-        "Koordinat": item.koordinat_absen,
-        "Status": item.is_validated ? "Tervalidasi" : "Belum Tervalidasi"
-      }));
 
       if (exportFormat === "excel") {
         // Convert to CSV with improved formatting
-        const headers = Object.keys(allData[0]);
+        const headers = Object.keys(dataToExport[0]);
         const csvContent = [
           // Add title row
           ["Laporan Presensi Siswa"],
           [""], // Empty row for spacing
           // Add date range if selected
           timeFilter === "custom" && startDate && endDate
-            ? [`Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(endDate, "dd MMMM yyyy")}`]
+            ? [
+                `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(
+                  endDate,
+                  "dd MMMM yyyy"
+                )}`,
+              ]
             : timeFilter !== "all"
-            ? [`Periode: ${(() => {
-                const now = new Date();
-                switch (timeFilter) {
-                  case "daily":
-                    return format(now, "dd MMMM yyyy");
-                  case "weekly":
-                    return `${format(startOfWeek(now, { locale: id }), "dd MMMM yyyy")} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
-                  case "monthly":
-                    return format(now, "MMMM yyyy");
-                  default:
-                    return "";
-                }
-              })()}`]
+            ? [
+                `Periode: ${(() => {
+                  const now = new Date();
+                  switch (timeFilter) {
+                    case "daily":
+                      return format(now, "dd MMMM yyyy");
+                    case "weekly":
+                      return `${format(
+                        startOfWeek(now, { locale: id }),
+                        "dd MMMM yyyy"
+                      )} - ${format(
+                        endOfWeek(now, { locale: id }),
+                        "dd MMMM yyyy"
+                      )}`;
+                    case "monthly":
+                      return format(now, "MMMM yyyy");
+                    default:
+                      return "";
+                  }
+                })()}`,
+              ]
             : ["Semua Periode"],
           [""], // Empty row for spacing
           // Add headers
           headers,
           // Add data rows
-          ...allData.map(row => 
-            headers.map(header => {
+          ...dataToExport.map((row) =>
+            headers.map((header) => {
               const value = row[header];
               // Escape commas and quotes in the value
               return `"${String(value).replace(/"/g, '""')}"`;
             })
-          )
-        ].filter(Boolean).join("\n");
+          ),
+        ]
+          .filter(Boolean)
+          .join("\n");
 
-        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob(["\ufeff" + csvContent], {
+          type: "text/csv;charset=utf-8;",
+        });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);
-        link.download = `presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.csv`;
+        link.download = `presensi-siswa-${format(
+          new Date(),
+          "yyyy-MM-dd"
+        )}.csv`;
         link.click();
       } else if (exportFormat === "pdf") {
         const doc = new jsPDF();
-        
+
         // Add title
         doc.setFontSize(16);
         doc.text("Laporan Presensi Siswa", 14, 15);
-        
+
         // Add date range if selected
         if (timeFilter === "custom" && startDate && endDate) {
           doc.setFontSize(10);
           doc.text(
-            `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(endDate, "dd MMMM yyyy")}`,
+            `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(
+              endDate,
+              "dd MMMM yyyy"
+            )}`,
             14,
             25
           );
@@ -584,7 +658,10 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
               periodText = `Tanggal: ${format(now, "dd MMMM yyyy")}`;
               break;
             case "weekly":
-              periodText = `Minggu: ${format(startOfWeek(now, { locale: id }), "dd MMMM yyyy")} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
+              periodText = `Minggu: ${format(
+                startOfWeek(now, { locale: id }),
+                "dd MMMM yyyy"
+              )} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
               break;
             case "monthly":
               periodText = `Bulan: ${format(now, "MMMM yyyy")}`;
@@ -596,8 +673,8 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
         // Add table with improved formatting
         autoTable(doc, {
           startY: timeFilter !== "all" ? 30 : 20,
-          head: [Object.keys(allData[0])],
-          body: allData.map(item => Object.values(item)),
+          head: [Object.keys(dataToExport[0])],
+          body: dataToExport.map((item) => Object.values(item)),
           theme: "grid",
           styles: {
             fontSize: 8,
@@ -640,10 +717,10 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
   return (
     <div className='flex w-full flex-col justify-start gap-6'>
       <div className='relative flex flex-col gap-4 overflow-auto px-4 lg:px-6'>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-4">
-              <Label htmlFor="time-filter">Filter Periode:</Label>
+        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+          <div className='flex flex-col gap-4 sm:flex-row sm:items-center'>
+            <div className='flex items-center gap-4'>
+              <Label htmlFor='time-filter'>Filter Periode:</Label>
               <Select
                 value={timeFilter}
                 onValueChange={(value) => {
@@ -652,49 +729,56 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
                     setDateRange([null, null]);
                   }
                 }}>
-                <SelectTrigger className="w-[180px]" id="time-filter">
-                  <SelectValue placeholder="Pilih periode" />
+                <SelectTrigger className='w-[180px]' id='time-filter'>
+                  <SelectValue placeholder='Pilih periode' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Semua</SelectItem>
-                  <SelectItem value="daily">Harian</SelectItem>
-                  <SelectItem value="weekly">Mingguan</SelectItem>
-                  <SelectItem value="monthly">Bulanan</SelectItem>
-                  <SelectItem value="custom">Rentang Tanggal</SelectItem>
+                  <SelectItem value='all'>Semua</SelectItem>
+                  <SelectItem value='daily'>Harian</SelectItem>
+                  <SelectItem value='weekly'>Mingguan</SelectItem>
+                  <SelectItem value='monthly'>Bulanan</SelectItem>
+                  <SelectItem value='custom'>Rentang Tanggal</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {timeFilter === "custom" && (
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <DatePicker
                   selected={startDate}
-                  onChange={(dates) => setDateRange(dates)}
+                  onChange={(dates) => {
+                    setDateRange(dates);
+                    // Pastikan filter dijalankan setelah pemilihan tanggal
+                    if (dates[0] && dates[1]) {
+                      // Filter data akan otomatis dijalankan karena dateRange adalah dependency dari filteredData
+                      console.log("Rentang tanggal dipilih:", dates);
+                    }
+                  }}
                   startDate={startDate}
                   endDate={endDate}
                   selectsRange
                   locale={id}
-                  dateFormat="dd/MM/yyyy"
-                  className="flex h-9 w-[240px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholderText="Pilih rentang tanggal"
+                  dateFormat='dd/MM/yyyy'
+                  className='flex h-9 w-[240px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+                  placeholderText='Pilih rentang tanggal'
                 />
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                <CalendarIcon className='h-4 w-4 text-muted-foreground' />
               </div>
             )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <DownloadIcon className="h-4 w-4" />
+              <Button variant='outline' className='gap-2'>
+                <DownloadIcon className='h-4 w-4' />
                 Export
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => handleExport("excel")}>
-                <FileDownIcon className="mr-2 h-4 w-4" />
+                <FileDownIcon className='mr-2 h-4 w-4' />
                 Export Excel
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport("pdf")}>
-                <FileDownIcon className="mr-2 h-4 w-4" />
+                <FileDownIcon className='mr-2 h-4 w-4' />
                 Export PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -759,12 +843,8 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
         <div className='flex items-center justify-between px-4'>
           <div className='hidden flex-1 text-sm text-muted-foreground lg:flex'>
             Showing{" "}
-            {pagination.page * pagination.pageSize - pagination.pageSize + 1}{" "}
-            to{" "}
-            {Math.min(
-              pagination.page * pagination.pageSize,
-              pagination.total
-            )}{" "}
+            {pagination.page * pagination.pageSize - pagination.pageSize + 1} to{" "}
+            {Math.min(pagination.page * pagination.pageSize, pagination.total)}{" "}
             of {pagination.total} entries
           </div>
           <div className='flex w-full items-center gap-8 lg:w-fit'>
@@ -778,9 +858,7 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
                   fetchData(1, Number(value));
                 }}>
                 <SelectTrigger className='w-20' id='rows-per-page'>
-                  <SelectValue
-                    placeholder={pagination.pageSize}
-                  />
+                  <SelectValue placeholder={pagination.pageSize} />
                 </SelectTrigger>
                 <SelectContent side='top'>
                   {[10, 20, 30, 40, 50].map((pageSize) => (
@@ -807,7 +885,9 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
                 variant='outline'
                 className='size-8'
                 size='icon'
-                onClick={() => fetchData(pagination.page - 1, pagination.pageSize)}
+                onClick={() =>
+                  fetchData(pagination.page - 1, pagination.pageSize)
+                }
                 disabled={pagination.page === 1}>
                 <span className='sr-only'>Go to previous page</span>
                 <ChevronLeftIcon />
@@ -816,7 +896,9 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
                 variant='outline'
                 className='size-8'
                 size='icon'
-                onClick={() => fetchData(pagination.page + 1, pagination.pageSize)}
+                onClick={() =>
+                  fetchData(pagination.page + 1, pagination.pageSize)
+                }
                 disabled={pagination.page === pagination.pageCount}>
                 <span className='sr-only'>Go to next page</span>
                 <ChevronRightIcon />
@@ -825,7 +907,9 @@ export function DataTableSiswa({ data: initialData, pagination: initialPaginatio
                 variant='outline'
                 className='hidden size-8 lg:flex'
                 size='icon'
-                onClick={() => fetchData(pagination.pageCount, pagination.pageSize)}
+                onClick={() =>
+                  fetchData(pagination.pageCount, pagination.pageSize)
+                }
                 disabled={pagination.page === pagination.pageCount}>
                 <span className='sr-only'>Go to last page</span>
                 <ChevronsRightIcon />
