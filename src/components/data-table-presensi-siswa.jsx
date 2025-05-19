@@ -327,16 +327,27 @@ function DraggableRow({ row }) {
   );
 }
 
-export function DataTableSiswa({ data: initialData }) {
-  const [data, setData] = React.useState(() => initialData);
+export function DataTableSiswa({ data: initialData, pagination: initialPagination, jwtToken }) {
+  const [data, setData] = React.useState(() => 
+    initialData.map((item) => ({
+      id: item.id,
+      nama: item.siswa.nama,
+      nomor_induk: item.siswa.nomor_induk_siswa,
+      waktu_absen: item.waktu_absen,
+      jenis_absen: item.jenis_absen,
+      koordinat: item.koordinat_absen,
+      status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
+      foto: `${process.env.NEXT_PUBLIC_API_URL}${
+        item.foto_absen?.formats?.thumbnail?.url || ""
+      }`,
+    }))
+  );
+  const [pagination, setPagination] = React.useState(initialPagination);
+  const [isLoading, setIsLoading] = React.useState(false);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState({});
   const [columnFilters, setColumnFilters] = React.useState([]);
   const [sorting, setSorting] = React.useState([]);
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
   const [timeFilter, setTimeFilter] = React.useState("all");
   const [dateRange, setDateRange] = React.useState([null, null]);
   const [startDate, endDate] = dateRange;
@@ -395,15 +406,56 @@ export function DataTableSiswa({ data: initialData }) {
     return filtered;
   }, [data, timeFilter, dateRange]);
 
+  const fetchData = async (page, pageSize) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=${page}&pageSize=${pageSize}&sort=waktu_absen:DESC`,
+        {
+          headers: {
+            Authorization: `Bearer ${jwtToken}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch data");
+      }
+
+      const responseData = await res.json();
+      setData(responseData.results.map((item) => ({
+        id: item.id,
+        nama: item.siswa.nama,
+        nomor_induk: item.siswa.nomor_induk_siswa,
+        waktu_absen: item.waktu_absen,
+        jenis_absen: item.jenis_absen,
+        koordinat: item.koordinat_absen,
+        status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
+        foto: `${process.env.NEXT_PUBLIC_API_URL}${
+          item.foto_absen?.formats?.thumbnail?.url || ""
+        }`,
+      })));
+      setPagination(responseData.pagination);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to fetch data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
     state: {
       sorting,
       columnVisibility,
       rowSelection,
       columnFilters,
-      pagination,
+      pagination: {
+        pageIndex: pagination.page - 1,
+        pageSize: pagination.pageSize,
+      },
     },
     getRowId: (row) => row.id.toString(),
     enableRowSelection: true,
@@ -411,10 +463,17 @@ export function DataTableSiswa({ data: initialData }) {
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
+    onPaginationChange: (updater) => {
+      const newPagination = typeof updater === 'function' 
+        ? updater({ pageIndex: pagination.page - 1, pageSize: pagination.pageSize })
+        : updater;
+      
+      fetchData(newPagination.pageIndex + 1, newPagination.pageSize);
+    },
+    pageCount: pagination.pageCount,
+    manualPagination: true,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
@@ -431,101 +490,152 @@ export function DataTableSiswa({ data: initialData }) {
     }
   }
 
-  const handleExport = (exportFormat) => {
-    const exportData = filteredData.map(item => ({
-      "Nama Siswa": item.nama,
-      "Waktu Absen": format(parseISO(item.waktu_absen), "dd MMMM yyyy HH:mm"),
-      "Jenis Absen": item.jenis_absen,
-      "Koordinat": item.koordinat,
-      "Status": item.status
-    }));
-
-    if (exportFormat === "excel") {
-      // Convert to CSV
-      const headers = Object.keys(exportData[0]);
-      const csvContent = [
-        headers.join(","),
-        ...exportData.map(row => 
-          headers.map(header => {
-            const value = row[header];
-            // Escape commas and quotes in the value
-            return `"${String(value).replace(/"/g, '""')}"`;
-          }).join(",")
-        )
-      ].join("\n");
-
-      const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.csv`;
-      link.click();
-    } else if (exportFormat === "pdf") {
-      const doc = new jsPDF();
-      
-      // Add title
-      doc.setFontSize(16);
-      doc.text("Laporan Presensi Siswa", 14, 15);
-      
-      // Add date range if selected
-      if (timeFilter === "custom" && startDate && endDate) {
-        doc.setFontSize(10);
-        doc.text(
-          `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(endDate, "dd MMMM yyyy")}`,
-          14,
-          25
-        );
-      } else if (timeFilter !== "all") {
-        doc.setFontSize(10);
-        const now = new Date();
-        let periodText = "";
-        switch (timeFilter) {
-          case "daily":
-            periodText = `Tanggal: ${format(now, "dd MMMM yyyy")}`;
-            break;
-          case "weekly":
-            periodText = `Minggu: ${format(startOfWeek(now, { locale: id }), "dd MMMM yyyy")} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
-            break;
-          case "monthly":
-            periodText = `Bulan: ${format(now, "MMMM yyyy")}`;
-            break;
+  const handleExport = async (exportFormat) => {
+    setIsLoading(true);
+    try {
+      // Fetch all data for export - set pageSize to a very large number to get all records
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?sort=waktu_absen:DESC&pageSize=10000`,
+        {
+          headers: {
+            Authorization: `Bearer ${jwtToken}`,
+          },
         }
-        doc.text(periodText, 14, 25);
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch data for export");
       }
 
-      // Add table
-      autoTable(doc, {
-        startY: timeFilter !== "all" ? 30 : 20,
-        head: [Object.keys(exportData[0])],
-        body: exportData.map(item => Object.values(item)),
-        theme: "grid",
-        styles: {
-          fontSize: 8,
-          cellPadding: 2,
-        },
-        headStyles: {
-          fillColor: [41, 128, 185],
-          textColor: 255,
-          fontSize: 8,
-          fontStyle: "bold",
-        },
-        columnStyles: {
-          0: { cellWidth: 40 }, // Nama Siswa
-          1: { cellWidth: 35 }, // Waktu Absen
-          2: { cellWidth: 25 }, // Jenis Absen
-          3: { cellWidth: 35 }, // Koordinat
-          4: { cellWidth: 25 }, // Status
-        },
-      });
+      const responseData = await res.json();
+      const allData = responseData.results.map(item => ({
+        "Nama Siswa": item.siswa.nama,
+        "NIS": item.siswa.nomor_induk_siswa,
+        "Waktu Absen": format(parseISO(item.waktu_absen), "dd MMMM yyyy HH:mm"),
+        "Jenis Absen": item.jenis_absen,
+        "Koordinat": item.koordinat_absen,
+        "Status": item.is_validated ? "Tervalidasi" : "Belum Tervalidasi"
+      }));
 
-      // Save the PDF
-      doc.save(`presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      if (exportFormat === "excel") {
+        // Convert to CSV with improved formatting
+        const headers = Object.keys(allData[0]);
+        const csvContent = [
+          // Add title row
+          ["Laporan Presensi Siswa"],
+          [""], // Empty row for spacing
+          // Add date range if selected
+          timeFilter === "custom" && startDate && endDate
+            ? [`Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(endDate, "dd MMMM yyyy")}`]
+            : timeFilter !== "all"
+            ? [`Periode: ${(() => {
+                const now = new Date();
+                switch (timeFilter) {
+                  case "daily":
+                    return format(now, "dd MMMM yyyy");
+                  case "weekly":
+                    return `${format(startOfWeek(now, { locale: id }), "dd MMMM yyyy")} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
+                  case "monthly":
+                    return format(now, "MMMM yyyy");
+                  default:
+                    return "";
+                }
+              })()}`]
+            : ["Semua Periode"],
+          [""], // Empty row for spacing
+          // Add headers
+          headers,
+          // Add data rows
+          ...allData.map(row => 
+            headers.map(header => {
+              const value = row[header];
+              // Escape commas and quotes in the value
+              return `"${String(value).replace(/"/g, '""')}"`;
+            })
+          )
+        ].filter(Boolean).join("\n");
+
+        const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.csv`;
+        link.click();
+      } else if (exportFormat === "pdf") {
+        const doc = new jsPDF();
+        
+        // Add title
+        doc.setFontSize(16);
+        doc.text("Laporan Presensi Siswa", 14, 15);
+        
+        // Add date range if selected
+        if (timeFilter === "custom" && startDate && endDate) {
+          doc.setFontSize(10);
+          doc.text(
+            `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(endDate, "dd MMMM yyyy")}`,
+            14,
+            25
+          );
+        } else if (timeFilter !== "all") {
+          doc.setFontSize(10);
+          const now = new Date();
+          let periodText = "";
+          switch (timeFilter) {
+            case "daily":
+              periodText = `Tanggal: ${format(now, "dd MMMM yyyy")}`;
+              break;
+            case "weekly":
+              periodText = `Minggu: ${format(startOfWeek(now, { locale: id }), "dd MMMM yyyy")} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
+              break;
+            case "monthly":
+              periodText = `Bulan: ${format(now, "MMMM yyyy")}`;
+              break;
+          }
+          doc.text(periodText, 14, 25);
+        }
+
+        // Add table with improved formatting
+        autoTable(doc, {
+          startY: timeFilter !== "all" ? 30 : 20,
+          head: [Object.keys(allData[0])],
+          body: allData.map(item => Object.values(item)),
+          theme: "grid",
+          styles: {
+            fontSize: 8,
+            cellPadding: 2,
+            lineColor: [41, 128, 185],
+            lineWidth: 0.1,
+          },
+          headStyles: {
+            fillColor: [41, 128, 185],
+            textColor: 255,
+            fontSize: 8,
+            fontStyle: "bold",
+            halign: "center",
+          },
+          columnStyles: {
+            0: { cellWidth: 40 }, // Nama Siswa
+            1: { cellWidth: 25 }, // NIS
+            2: { cellWidth: 35 }, // Waktu Absen
+            3: { cellWidth: 25 }, // Jenis Absen
+            4: { cellWidth: 35 }, // Koordinat
+            5: { cellWidth: 25 }, // Status
+          },
+          alternateRowStyles: {
+            fillColor: [245, 245, 245],
+          },
+          margin: { top: 20 },
+        });
+
+        // Save the PDF
+        doc.save(`presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      }
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      toast.error("Failed to export data");
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  const pageCount = Math.ceil(filteredData.length / pagination.pageSize);
-  const start = pagination.pageIndex * pagination.pageSize;
-  const end = start + pagination.pageSize;
-  const currentPageData = filteredData.slice(start, end);
 
   return (
     <div className='flex w-full flex-col justify-start gap-6'>
@@ -617,7 +727,15 @@ export function DataTableSiswa({ data: initialData }) {
                 ))}
               </TableHeader>
               <TableBody className='**:data-[slot=table-cell]:first:w-8'>
-                {table.getRowModel().rows?.length ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className='h-24 text-center'>
+                      Loading...
+                    </TableCell>
+                  </TableRow>
+                ) : table.getRowModel().rows?.length ? (
                   <SortableContext
                     items={dataIds}
                     strategy={verticalListSortingStrategy}>
@@ -641,16 +759,13 @@ export function DataTableSiswa({ data: initialData }) {
         <div className='flex items-center justify-between px-4'>
           <div className='hidden flex-1 text-sm text-muted-foreground lg:flex'>
             Showing{" "}
-            {table.getState().pagination.pageIndex *
-              table.getState().pagination.pageSize +
-              1}{" "}
+            {pagination.page * pagination.pageSize - pagination.pageSize + 1}{" "}
             to{" "}
             {Math.min(
-              (table.getState().pagination.pageIndex + 1) *
-                table.getState().pagination.pageSize,
-              table.getFilteredRowModel().rows.length
+              pagination.page * pagination.pageSize,
+              pagination.total
             )}{" "}
-            of {table.getFilteredRowModel().rows.length} entries
+            of {pagination.total} entries
           </div>
           <div className='flex w-full items-center gap-8 lg:w-fit'>
             <div className='hidden items-center gap-2 lg:flex'>
@@ -658,13 +773,13 @@ export function DataTableSiswa({ data: initialData }) {
                 Rows per page
               </Label>
               <Select
-                value={`${table.getState().pagination.pageSize}`}
+                value={`${pagination.pageSize}`}
                 onValueChange={(value) => {
-                  table.setPageSize(Number(value));
+                  fetchData(1, Number(value));
                 }}>
                 <SelectTrigger className='w-20' id='rows-per-page'>
                   <SelectValue
-                    placeholder={table.getState().pagination.pageSize}
+                    placeholder={pagination.pageSize}
                   />
                 </SelectTrigger>
                 <SelectContent side='top'>
@@ -677,15 +792,14 @@ export function DataTableSiswa({ data: initialData }) {
               </Select>
             </div>
             <div className='flex w-fit items-center justify-center text-sm font-medium'>
-              Page {table.getState().pagination.pageIndex + 1} of{" "}
-              {table.getPageCount()}
+              Page {pagination.page} of {pagination.pageCount}
             </div>
             <div className='ml-auto flex items-center gap-2 lg:ml-0'>
               <Button
                 variant='outline'
                 className='hidden h-8 w-8 p-0 lg:flex'
-                onClick={() => table.setPageIndex(0)}
-                disabled={!table.getCanPreviousPage()}>
+                onClick={() => fetchData(1, pagination.pageSize)}
+                disabled={pagination.page === 1}>
                 <span className='sr-only'>Go to first page</span>
                 <ChevronsLeftIcon />
               </Button>
@@ -693,8 +807,8 @@ export function DataTableSiswa({ data: initialData }) {
                 variant='outline'
                 className='size-8'
                 size='icon'
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}>
+                onClick={() => fetchData(pagination.page - 1, pagination.pageSize)}
+                disabled={pagination.page === 1}>
                 <span className='sr-only'>Go to previous page</span>
                 <ChevronLeftIcon />
               </Button>
@@ -702,8 +816,8 @@ export function DataTableSiswa({ data: initialData }) {
                 variant='outline'
                 className='size-8'
                 size='icon'
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}>
+                onClick={() => fetchData(pagination.page + 1, pagination.pageSize)}
+                disabled={pagination.page === pagination.pageCount}>
                 <span className='sr-only'>Go to next page</span>
                 <ChevronRightIcon />
               </Button>
@@ -711,8 +825,8 @@ export function DataTableSiswa({ data: initialData }) {
                 variant='outline'
                 className='hidden size-8 lg:flex'
                 size='icon'
-                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                disabled={!table.getCanNextPage()}>
+                onClick={() => fetchData(pagination.pageCount, pagination.pageSize)}
+                disabled={pagination.page === pagination.pageCount}>
                 <span className='sr-only'>Go to last page</span>
                 <ChevronsRightIcon />
               </Button>

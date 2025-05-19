@@ -39,7 +39,7 @@ export default async function Page() {
     }
 
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=1&pageSize=10&sort=koordinat_absen%3AASC`,
+      `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=1&pageSize=10&sort=waktu_absen:DESC`,
       {
         headers: {
           Authorization: `Bearer ${jwtToken}`,
@@ -52,22 +52,16 @@ export default async function Page() {
     }
 
     const data = await res.json();
-    return data.results.map((item) => ({
-      id: item.id,
-      nama: item.siswa.nama,
-      nomor_induk: item.siswa.nomor_induk_siswa,
-      waktu_absen: item.waktu_absen,
-      jenis_absen: item.jenis_absen,
-      koordinat: item.koordinat_absen,
-      status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-      foto: `${process.env.NEXT_PUBLIC_API_URL}${
-        item.foto_absen?.formats?.thumbnail?.url || ""
-      }`,
-    }));
+    return {
+      data: data.results,
+      pagination: data.pagination
+    };
   }
 
   const userData = await getUserData();
-  const presensiData = await getPresensiSiswa();
+  const { data: presensiData, pagination } = await getPresensiSiswa();
+  const jwtToken = cookies().get("jwtToken")?.value;
+  
 
   return (
     <SidebarProvider>
@@ -82,7 +76,7 @@ export default async function Page() {
                   Presensi Siswa
                 </h2>
               </div>
-              <DataTableSiswa data={presensiData} />
+              <DataTableSiswa data={presensiData} pagination={pagination} jwtToken={jwtToken} />
             </div>
           </div>
         </div>
