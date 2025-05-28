@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import { Badge } from "./ui/badge";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   SortableContext,
@@ -65,9 +66,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-
-import { useIsMobile } from "@/hooks/use-mobile";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -119,6 +118,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export const schema = z.object({
   id: z.number(),
@@ -366,7 +367,7 @@ export function DataTableSiswa({
   const [sorting, setSorting] = React.useState([]);
   const [timeFilter, setTimeFilter] = React.useState("all");
   const [dateRange, setDateRange] = React.useState([null, null]);
-  const [startDate, endDate] = dateRange;
+  const [selectedDate, setSelectedDate] = React.useState(null);
   const [selectedKelas, setSelectedKelas] = React.useState("");
   const sortableId = React.useId();
   const sensors = useSensors(
@@ -375,53 +376,48 @@ export function DataTableSiswa({
     useSensor(KeyboardSensor, {})
   );
 
+  React.useEffect(() => {
+    // Create a portal element for the date picker if it doesn't exist
+    let datePickerPortal = document.getElementById('datepicker-portal');
+    if (!datePickerPortal) {
+      datePickerPortal = document.createElement('div');
+      datePickerPortal.setAttribute('id', 'datepicker-portal');
+      document.body.appendChild(datePickerPortal);
+    }
+    return () => {
+      // Clean up the portal element when the component unmounts
+      if (datePickerPortal) {
+        datePickerPortal.remove();
+      }
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount and unmount
+
   const dataIds = React.useMemo(() => data?.map(({ id }) => id) || [], [data]);
 
   const filteredData = React.useMemo(() => {
     let filtered = [...data];
 
     if (timeFilter !== "all") {
-      const now = new Date();
       switch (timeFilter) {
-        case "daily":
-          const today = format(now, "yyyy-MM-dd");
-          filtered = filtered.filter((item) => {
-            const itemDate = parseISO(item.waktu_absen);
-            return format(itemDate, "yyyy-MM-dd") === today;
-          });
-          break;
-        case "weekly":
-          const weekStart = startOfWeek(now, { locale: id });
-          const weekEnd = endOfWeek(now, { locale: id });
-          filtered = filtered.filter((item) => {
-            const itemDate = parseISO(item.waktu_absen);
-            return isWithinInterval(itemDate, {
-              start: weekStart,
-              end: weekEnd,
+        case "single":
+          if (selectedDate) {
+            const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+            filtered = filtered.filter((item) => {
+              const itemDate = parseISO(item.waktu_absen);
+              return format(itemDate, "yyyy-MM-dd") === selectedDateStr;
             });
-          });
+          }
           break;
-        case "monthly":
-          const monthStart = startOfMonth(now);
-          const monthEnd = endOfMonth(now);
-          filtered = filtered.filter((item) => {
-            const itemDate = parseISO(item.waktu_absen);
-            return isWithinInterval(itemDate, {
-              start: monthStart,
-              end: monthEnd,
-            });
-          });
-          break;
-        case "custom":
-          if (startDate && endDate) {
+        case "range":
+          if (dateRange && dateRange[0] && dateRange[1]) {
             // Mengatur waktu endDate ke 23:59:59 untuk mencakup seluruh hari
-            const endDateWithTime = new Date(endDate);
+            const endDateWithTime = new Date(dateRange[1]);
             endDateWithTime.setHours(23, 59, 59, 999);
 
             filtered = filtered.filter((item) => {
               const itemDate = parseISO(item.waktu_absen);
               return isWithinInterval(itemDate, {
-                start: startDate,
+                start: dateRange[0],
                 end: endDateWithTime,
               });
             });
@@ -431,7 +427,7 @@ export function DataTableSiswa({
     }
 
     return filtered;
-  }, [data, timeFilter, startDate, endDate]);
+  }, [data, timeFilter, selectedDate, dateRange]);
 
   const fetchData = async (page, pageSize, kelas = selectedKelas) => {
     setIsLoading(true);
@@ -581,10 +577,10 @@ export function DataTableSiswa({
           ["Laporan Presensi Siswa"],
           [""], // Empty row for spacing
           // Add date range if selected
-          timeFilter === "custom" && startDate && endDate
+          timeFilter === "range" && dateRange && dateRange[0] && dateRange[1]
             ? [
-                `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(
-                  endDate,
+                `Periode: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(
+                  dateRange[1],
                   "dd MMMM yyyy"
                 )}`,
               ]
@@ -593,18 +589,13 @@ export function DataTableSiswa({
                 `Periode: ${(() => {
                   const now = new Date();
                   switch (timeFilter) {
-                    case "daily":
-                      return format(now, "dd MMMM yyyy");
-                    case "weekly":
-                      return `${format(
-                        startOfWeek(now, { locale: id }),
-                        "dd MMMM yyyy"
-                      )} - ${format(
-                        endOfWeek(now, { locale: id }),
+                    case "single":
+                      return format(selectedDate, "dd MMMM yyyy");
+                    case "range":
+                      return `${format(dateRange[0], "dd MMMM yyyy")} - ${format(
+                        dateRange[1],
                         "dd MMMM yyyy"
                       )}`;
-                    case "monthly":
-                      return format(now, "MMMM yyyy");
                     default:
                       return "";
                   }
@@ -644,11 +635,11 @@ export function DataTableSiswa({
         doc.text("Laporan Presensi Siswa", 14, 15);
 
         // Add date range if selected
-        if (timeFilter === "custom" && startDate && endDate) {
+        if (timeFilter === "range" && dateRange && dateRange[0] && dateRange[1]) {
           doc.setFontSize(10);
           doc.text(
-            `Periode: ${format(startDate, "dd MMMM yyyy")} - ${format(
-              endDate,
+            `Periode: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(
+              dateRange[1],
               "dd MMMM yyyy"
             )}`,
             14,
@@ -659,17 +650,14 @@ export function DataTableSiswa({
           const now = new Date();
           let periodText = "";
           switch (timeFilter) {
-            case "daily":
-              periodText = `Tanggal: ${format(now, "dd MMMM yyyy")}`;
+            case "single":
+              periodText = `Tanggal: ${format(selectedDate, "dd MMMM yyyy")}`;
               break;
-            case "weekly":
-              periodText = `Minggu: ${format(
-                startOfWeek(now, { locale: id }),
+            case "range":
+              periodText = `Rentang: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(
+                dateRange[1],
                 "dd MMMM yyyy"
-              )} - ${format(endOfWeek(now, { locale: id }), "dd MMMM yyyy")}`;
-              break;
-            case "monthly":
-              periodText = `Bulan: ${format(now, "MMMM yyyy")}`;
+              )}`;
               break;
           }
           doc.text(periodText, 14, 25);
@@ -746,48 +734,75 @@ export function DataTableSiswa({
               </Select>
             </div>
             <div className='flex items-center gap-4'>
-              <Label htmlFor='time-filter'>Filter Periode:</Label>
+              <Label htmlFor='time-filter'>Filter Tanggal:</Label>
               <Select
                 value={timeFilter}
                 onValueChange={(value) => {
                   setTimeFilter(value);
-                  if (value !== "custom") {
+                  if (value === "all") {
+                    setSelectedDate(null);
                     setDateRange([null, null]);
                   }
                 }}>
                 <SelectTrigger className='w-[180px]' id='time-filter'>
-                  <SelectValue placeholder='Pilih periode' />
+                  <SelectValue placeholder='Pilih filter tanggal' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='all'>Semua</SelectItem>
-                  <SelectItem value='daily'>Harian</SelectItem>
-                  <SelectItem value='weekly'>Mingguan</SelectItem>
-                  <SelectItem value='monthly'>Bulanan</SelectItem>
-                  <SelectItem value='custom'>Rentang Tanggal</SelectItem>
+                  <SelectItem value='all'>Semua Tanggal</SelectItem>
+                  <SelectItem value='single'>Tanggal Tertentu</SelectItem>
+                  <SelectItem value='range'>Rentang Tanggal</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {timeFilter === "custom" && (
-              <div className='flex items-center gap-2'>
-                <DatePicker
-                  selected={startDate}
-                  onChange={(dates) => {
-                    setDateRange(dates);
-                    // Pastikan filter dijalankan setelah pemilihan tanggal
-                    if (dates[0] && dates[1]) {
-                      // Filter data akan otomatis dijalankan karena dateRange adalah dependency dari filteredData
-                      console.log("Rentang tanggal dipilih:", dates);
-                    }
-                  }}
-                  startDate={startDate}
-                  endDate={endDate}
-                  selectsRange
-                  locale={id}
-                  dateFormat='dd/MM/yyyy'
-                  className='flex h-9 w-[240px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
-                  placeholderText='Pilih rentang tanggal'
-                />
-                <CalendarIcon className='h-4 w-4 text-muted-foreground' />
+            {timeFilter === "single" && (
+              <div className='flex items-center gap-2 relative z-10'>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-[240px] justify-start text-left font-normal",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "dd MMMM yyyy") : <span>Pilih tanggal</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      initialFocus
+                      locale={id}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            {timeFilter === "range" && (
+              <div className='flex items-center gap-2 relative z-10'>
+                <div className='flex items-center gap-2'>
+                  <Label htmlFor='start-date'>Tanggal Mulai:</Label>
+                  <Input
+                    id='start-date'
+                    type='date'
+                    value={dateRange[0] ? format(dateRange[0], "yyyy-MM-dd") : ''}
+                    onChange={(e) => setDateRange([e.target.value ? parseISO(e.target.value) : null, dateRange[1]])}
+                    className='flex h-9 w-[180px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+                  />
+                </div>
+                <div className='flex items-center gap-2'>
+                  <Label htmlFor='end-date'>Tanggal Akhir:</Label>
+                  <Input
+                    id='end-date'
+                    type='date'
+                    value={dateRange[1] ? format(dateRange[1], "yyyy-MM-dd") : ''}
+                    onChange={(e) => setDateRange([dateRange[0], e.target.value ? parseISO(e.target.value) : null])}
+                    className='flex h-9 w-[180px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50'
+                  />
+                </div>
               </div>
             )}
           </div>
