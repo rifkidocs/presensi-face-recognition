@@ -47,17 +47,17 @@ export function AppSidebar({ userData, ...props }) {
         {
           title: "Presensi Siswa",
           url: "/dashboard/presensi-siswa",
-          icon: ClipboardListIcon,
+          icon: UsersIcon,
         },
         {
           title: "Presensi Guru",
           url: "/dashboard/presensi-guru",
-          icon: ClipboardListIcon,
+          icon: FileTextIcon,
         },
         {
           title: "Presensi Pegawai",
           url: "/dashboard/presensi-pegawai",
-          icon: ClipboardListIcon,
+          icon: DatabaseIcon,
         },
       ]
     : [
@@ -74,7 +74,12 @@ export function AppSidebar({ userData, ...props }) {
         {
           title: "Presensi Siswa",
           url: "/dashboard/presensi-siswa",
-          icon: ClipboardListIcon,
+          icon: FileTextIcon,
+        },
+        {
+          title: "Presensi Guru",
+          url: "/dashboard/presensi-guru",
+          icon: DatabaseIcon,
         },
       ];
 
