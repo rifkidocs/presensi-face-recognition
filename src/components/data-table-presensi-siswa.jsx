@@ -342,6 +342,7 @@ export function DataTableSiswa({
   data: initialData,
   pagination: initialPagination,
   jwtToken,
+  kelasData,
 }) {
   const [data, setData] = React.useState(() =>
     initialData.map((item) => ({
@@ -366,6 +367,7 @@ export function DataTableSiswa({
   const [timeFilter, setTimeFilter] = React.useState("all");
   const [dateRange, setDateRange] = React.useState([null, null]);
   const [startDate, endDate] = dateRange;
+  const [selectedKelas, setSelectedKelas] = React.useState("");
   const sortableId = React.useId();
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -431,17 +433,20 @@ export function DataTableSiswa({
     return filtered;
   }, [data, timeFilter, startDate, endDate]);
 
-  const fetchData = async (page, pageSize) => {
+  const fetchData = async (page, pageSize, kelas = selectedKelas) => {
     setIsLoading(true);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=${page}&pageSize=${pageSize}&sort=waktu_absen:DESC`,
-        {
-          headers: {
-            Authorization: `Bearer ${jwtToken}`,
-          },
-        }
-      );
+      let url = `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=${page}&pageSize=${pageSize}&sort=waktu_absen:DESC&populate[siswa][populate]=kelas_sekolah`;
+      
+      if (kelas) {
+        url += `&filters[siswa][kelas_sekolah][nama_kelas][$eq]=${kelas}`;
+      }
+
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      });
 
       if (!res.ok) {
         throw new Error("Failed to fetch data");
@@ -719,6 +724,27 @@ export function DataTableSiswa({
       <div className='relative flex flex-col gap-4 overflow-auto px-4 lg:px-6'>
         <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex flex-col gap-4 sm:flex-row sm:items-center'>
+            <div className='flex items-center gap-4'>
+              <Label htmlFor='kelas-filter'>Filter Kelas:</Label>
+              <Select
+                value={selectedKelas}
+                onValueChange={(value) => {
+                  setSelectedKelas(value);
+                  fetchData(1, pagination.pageSize, value === "all" ? null : value);
+                }}>
+                <SelectTrigger className='w-[180px]' id='kelas-filter'>
+                  <SelectValue placeholder='Pilih kelas' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kelas</SelectItem>
+                  {kelasData?.map((kelas) => (
+                    <SelectItem key={kelas.id} value={kelas.nama_kelas}>
+                      {kelas.nama_kelas}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className='flex items-center gap-4'>
               <Label htmlFor='time-filter'>Filter Periode:</Label>
               <Select

@@ -33,7 +33,6 @@ export default async function Page({ searchParams }) {
     }
 
     const userData = await res.json();
-    console.log(userData.data);
     
     return userData.data;
   }
@@ -62,7 +61,6 @@ export default async function Page({ searchParams }) {
     }
 
     const data = await res.json();
-    console.log(data.data[0]);
     
     return data.data[0]; // Return the guru data that matches the email
   }

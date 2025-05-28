@@ -30,7 +30,21 @@ export default async function Page() {
     return userData.data;
   }
 
-  async function getPresensiSiswa() {
+  async function getKelasSekolah() {
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/kelas-sekolahs`
+    );
+
+    if (!res.ok) {
+      throw new Error("Failed to fetch kelas data");
+    }
+
+    const data = await res.json();
+    return data.data;
+  }
+
+  async function getPresensiSiswa(selectedKelas = null) {
     const cookieStore = cookies();
     const jwtToken = cookieStore.get("jwtToken")?.value;
 
@@ -38,14 +52,17 @@ export default async function Page() {
       throw new Error("Authentication token not found");
     }
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=1&pageSize=10&sort=waktu_absen:DESC`,
-      {
-        headers: {
-          Authorization: `Bearer ${jwtToken}`,
-        },
-      }
-    );
+    let url = `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=1&pageSize=10&sort=waktu_absen:DESC&populate[siswa][populate]=kelas_sekolah`;
+    
+    if (selectedKelas) {
+      url += `&filters[siswa][kelas_sekolah][nama_kelas][$eq]=${selectedKelas}`;
+    }
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${jwtToken}`,
+      },
+    });
 
     if (!res.ok) {
       throw new Error("Failed to fetch presensi siswa data");
@@ -59,6 +76,7 @@ export default async function Page() {
   }
 
   const userData = await getUserData();
+  const kelasData = await getKelasSekolah();
   const { data: presensiData, pagination } = await getPresensiSiswa();
   const jwtToken = cookies().get("jwtToken")?.value;
   
@@ -76,7 +94,12 @@ export default async function Page() {
                   Presensi Siswa
                 </h2>
               </div>
-              <DataTableSiswa data={presensiData} pagination={pagination} jwtToken={jwtToken} />
+              <DataTableSiswa 
+                data={presensiData} 
+                pagination={pagination} 
+                jwtToken={jwtToken} 
+                kelasData={kelasData}
+              />
             </div>
           </div>
         </div>
