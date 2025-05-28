@@ -6,9 +6,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoIcon, CheckCircleIcon } from "lucide-react";
 import { cookies } from "next/headers";
 
-export default async function Page() {
+export default async function Page({ searchParams }) {
+  const page = Number(searchParams?.page) || 1;
+  const pageSize = Number(searchParams?.pageSize) || 10;
+  const search = searchParams?.search || "";
+
   async function getUserData() {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const jwtToken = cookieStore.get("jwtToken")?.value;
 
     if (!jwtToken) {
@@ -29,20 +33,25 @@ export default async function Page() {
     }
 
     const userData = await res.json();
+    console.log(userData.data);
+    
     return userData.data;
   }
 
   async function getGuruData() {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const jwtToken = cookieStore.get("jwtToken")?.value;
 
     if (!jwtToken) {
       throw new Error("Authentication token not found");
     }
 
-    // Get current user data (guru)
+    // Get user data first to get the email
+    const userData = await getUserData();
+
+    // Get current user data (guru) filtered by email
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/gurus?populate=*`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/gurus?populate=*&filters[email][$eq]=${userData.email}`,
       {
         cache: "no-store",
       }
@@ -53,22 +62,29 @@ export default async function Page() {
     }
 
     const data = await res.json();
-    return data.data[0]; // Assuming the first guru is the logged-in user
+    console.log(data.data[0]);
+    
+    return data.data[0]; // Return the guru data that matches the email
   }
 
-  async function getSiswaData(kelasId) {
-    const cookieStore = cookies();
+  async function getSiswaData(kelasId, page = 1, pageSize = 10, search = "") {
+    const cookieStore = await cookies();
     const jwtToken = cookieStore.get("jwtToken")?.value;
 
     if (!jwtToken) {
       throw new Error("Authentication token not found");
     }
 
-    let url = `${process.env.NEXT_PUBLIC_API_URL}/api/siswas?populate=*`;
+    let url = `${process.env.NEXT_PUBLIC_API_URL}/api/siswas?populate=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}`;
 
     // If kelasId is provided, filter students by that class
     if (kelasId) {
       url += `&filters[kelas_sekolah][id][$eq]=${kelasId}`;
+    }
+
+    // Add search filter if search term is provided
+    if (search) {
+      url += `&filters[nama][$containsi]=${encodeURIComponent(search)}`;
     }
 
     const res = await fetch(url, {
@@ -80,7 +96,10 @@ export default async function Page() {
     }
 
     const data = await res.json();
-    return data.data;
+    return {
+      data: data.data,
+      pagination: data.meta.pagination
+    };
   }
 
   const userData = await getUserData();
@@ -92,8 +111,13 @@ export default async function Page() {
   const isWaliKelas = !!guruData.wali_kelas;
   const kelasWali = guruData.wali_kelas;
 
-  // Get siswa data - if guru is wali kelas, get students from their class
-  const siswaData = await getSiswaData(isWaliKelas ? kelasWali.id : null);
+  // Get siswa data with search parameter
+  const { data: siswaData, pagination } = await getSiswaData(
+    isWaliKelas ? kelasWali.id : null,
+    page,
+    pageSize,
+    search
+  );
 
   return (
     <SidebarProvider>
@@ -135,6 +159,7 @@ export default async function Page() {
 
               <DataTableKelolaSiswa
                 data={siswaData}
+                pagination={pagination}
                 title={
                   isWaliKelas
                     ? `Daftar Siswa ${kelasWali.nama_kelas}`

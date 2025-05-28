@@ -24,9 +24,12 @@ import {
   TrashIcon,
   UserIcon,
   XIcon,
+  CalendarIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { id } from "date-fns/locale";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +67,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const columns = [
   {
@@ -109,21 +119,67 @@ const columns = [
     ),
   },
   {
+    accessorKey: "kehadiran",
+    header: "Status Kehadiran",
+    cell: ({ row, table }) => {
+      const { attendanceData } = table.options.meta || {};
+      const studentAttendance = attendanceData?.find(
+        (attendance) => attendance.siswa.id === row.original.id
+      );
+
+      if (!studentAttendance) {
+        return (
+          <Badge variant="destructive" className="flex gap-1 items-center">
+            <XIcon className="h-3 w-3" />
+            Tidak Hadir
+          </Badge>
+        );
+      }
+
+      return (
+        <Badge variant="success" className="flex gap-1 items-center">
+          <CheckIcon className="h-3 w-3" />
+          {studentAttendance.jenis_absen === "masuk" ? "Hadir" : "Pulang"}
+        </Badge>
+      );
+    },
+  },
+  {
     accessorKey: "foto",
     header: "Foto Siswa",
     cell: ({ row }) => {
       const foto =
         row.original.foto_wajah && row.original.foto_wajah.length > 0
           ? `${process.env.NEXT_PUBLIC_API_URL}${row.original.foto_wajah[0].formats.thumbnail.url}`
-          : "/default-avatar.png";
+          : null;
+
+      // Get initials from name
+      const getInitials = (name) => {
+        return name
+          .split(' ')
+          .map(word => word[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
+      };
+
+      if (foto) {
+        return (
+          <div className='relative h-10 w-10 overflow-hidden rounded-full'>
+            <img
+              src={foto}
+              alt={`Foto ${row.original.nama}`}
+              className='object-cover h-full w-full'
+            />
+          </div>
+        );
+      }
 
       return (
-        <div className='relative h-10 w-10 overflow-hidden rounded-full'>
-          <img
-            src={foto}
-            alt={`Foto ${row.original.nama}`}
-            className='object-cover h-full w-full'
-          />
+        <div className='relative h-10 w-10 overflow-hidden rounded-full bg-muted flex items-center justify-center'>
+          <span className='text-sm font-medium text-muted-foreground'>
+            {getInitials(row.original.nama)}
+          </span>
         </div>
       );
     },
@@ -131,29 +187,17 @@ const columns = [
   {
     id: "actions",
     header: "Aksi",
-    cell: ({ row, table }) => {
+    cell: ({ row }) => {
       const [showDetail, setShowDetail] = React.useState(false);
-      const [isRemoving, setIsRemoving] = React.useState(false);
-      const [showConfirmRemove, setShowConfirmRemove] = React.useState(false);
-      const hasClass = !!row.original.kelas_sekolah;
 
-      // Get the removeStudentFromClass function from table meta
-      const { removeStudentFromClass } = table.options.meta || {};
-
-      const handleRemoveStudent = async () => {
-        if (removeStudentFromClass) {
-          setIsRemoving(true);
-          try {
-            await removeStudentFromClass(row.original.documentId);
-            toast.success("Siswa berhasil dihapus dari kelas");
-            setShowConfirmRemove(false);
-          } catch (error) {
-            console.error("Error removing student:", error);
-            toast.error("Gagal menghapus siswa dari kelas");
-          } finally {
-            setIsRemoving(false);
-          }
-        }
+      // Get initials from name
+      const getInitials = (name) => {
+        return name
+          .split(' ')
+          .map(word => word[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
       };
 
       return (
@@ -172,17 +216,6 @@ const columns = [
               <DropdownMenuItem onClick={() => setShowDetail(true)}>
                 Lihat Detail
               </DropdownMenuItem>
-              {hasClass && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className='text-destructive'
-                    onClick={() => setShowConfirmRemove(true)}>
-                    <TrashIcon className='mr-2 h-4 w-4' />
-                    Hapus dari Kelas
-                  </DropdownMenuItem>
-                </>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -197,16 +230,19 @@ const columns = [
               <div className='grid gap-4 py-4'>
                 <div className='flex flex-col items-center gap-4'>
                   <div className='relative h-32 w-32 overflow-hidden rounded-lg'>
-                    <img
-                      src={
-                        row.original.foto_wajah &&
-                        row.original.foto_wajah.length > 0
-                          ? `${process.env.NEXT_PUBLIC_API_URL}${row.original.foto_wajah[0].url}`
-                          : "/default-avatar.png"
-                      }
-                      alt={`Foto ${row.original.nama}`}
-                      className='h-full w-full object-cover'
-                    />
+                    {row.original.foto_wajah && row.original.foto_wajah.length > 0 ? (
+                      <img
+                        src={`${process.env.NEXT_PUBLIC_API_URL}${row.original.foto_wajah[0].url}`}
+                        alt={`Foto ${row.original.nama}`}
+                        className='h-full w-full object-cover'
+                      />
+                    ) : (
+                      <div className='h-full w-full bg-muted flex items-center justify-center'>
+                        <span className='text-4xl font-medium text-muted-foreground'>
+                          {getInitials(row.original.nama)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className='grid gap-2'>
@@ -243,170 +279,97 @@ const columns = [
               </div>
             </DialogContent>
           </Dialog>
-
-          {/* Confirm Remove Dialog */}
-          <Dialog open={showConfirmRemove} onOpenChange={setShowConfirmRemove}>
-            <DialogContent className='sm:max-w-[425px]'>
-              <DialogHeader>
-                <DialogTitle>Hapus Siswa dari Kelas</DialogTitle>
-                <DialogDescription>
-                  Apakah Anda yakin ingin menghapus siswa ini dari kelas?
-                  Tindakan ini tidak akan menghapus data siswa dari sistem.
-                </DialogDescription>
-              </DialogHeader>
-              <div className='flex items-center gap-4 py-3'>
-                <AlertCircleIcon className='h-10 w-10 text-destructive' />
-                <div>
-                  <p className='font-medium'>{row.original.nama}</p>
-                  <p className='text-sm text-muted-foreground'>
-                    Kelas: {row.original.kelas_sekolah?.nama_kelas}
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant='outline'
-                  onClick={() => setShowConfirmRemove(false)}>
-                  Batal
-                </Button>
-                <Button
-                  variant='destructive'
-                  onClick={handleRemoveStudent}
-                  disabled={isRemoving}>
-                  {isRemoving ? (
-                    <>
-                      <Loader2Icon className='mr-2 h-4 w-4 animate-spin' />
-                      Menghapus...
-                    </>
-                  ) : (
-                    <>
-                      <TrashIcon className='mr-2 h-4 w-4' />
-                      Hapus dari Kelas
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </>
       );
     },
   },
 ];
 
-export function DataTableKelolaSiswa({ data, title, kelasId }) {
+export function DataTableKelolaSiswa({ data, title, kelasId, pagination: serverPagination }) {
   const router = useRouter();
   const [columnVisibility, setColumnVisibility] = React.useState({});
   const [columnFilters, setColumnFilters] = React.useState([]);
   const [sorting, setSorting] = React.useState([]);
   const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
+    pageIndex: serverPagination.page - 1,
+    pageSize: serverPagination.pageSize,
   });
+  const [date, setDate] = React.useState(new Date());
+  const [attendanceData, setAttendanceData] = React.useState([]);
+  const [isLoadingAttendance, setIsLoadingAttendance] = React.useState(false);
+  const [searchValue, setSearchValue] = React.useState("");
 
-  const [showAddStudentDialog, setShowAddStudentDialog] = React.useState(false);
-  const [availableStudents, setAvailableStudents] = React.useState([]);
-  const [isLoadingStudents, setIsLoadingStudents] = React.useState(false);
-  const [selectedStudent, setSelectedStudent] = React.useState("");
-  const [isAddingStudent, setIsAddingStudent] = React.useState(false);
+  // Check if user is wali kelas
+  const isWaliKelas = !!kelasId;
 
-  // Function to remove student from class
-  const removeStudentFromClass = async (studentId) => {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/siswas/${studentId}`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          data: {
-            kelas_sekolah: null,
-          },
-        }),
+  // Function to handle search with debounce
+  const handleSearch = React.useCallback(
+    (value) => {
+      setSearchValue(value);
+      const searchParams = new URLSearchParams(window.location.search);
+      if (value) {
+        searchParams.set("search", value);
+      } else {
+        searchParams.delete("search");
       }
-    );
+      searchParams.set("page", "1"); // Reset to first page when searching
+      router.push(`/dashboard/kelola-siswa?${searchParams.toString()}`);
+    },
+    [router]
+  );
 
-    if (!response.ok) {
-      throw new Error("Failed to remove student from class");
-    }
-
-    // Refresh the page to show updated data
-    router.refresh();
-  };
-
-  // Function to add student to class
-  const addStudentToClass = async () => {
-    if (!selectedStudent || !kelasId) return;
-
-    setIsAddingStudent(true);
+  // Function to fetch attendance data
+  const fetchAttendanceData = async (selectedDate) => {
+    if (!isWaliKelas) return; // Don't fetch if not wali kelas
+    
+    setIsLoadingAttendance(true);
     try {
+      const formattedDate = format(selectedDate, "yyyy-MM-dd");
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/siswas/${selectedStudent}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            data: {
-              kelas_sekolah: kelasId,
-            },
-          }),
-        }
+        `${process.env.NEXT_PUBLIC_API_URL}/api/presensi-siswas?populate=*&filters[waktu_absen][$gte]=${formattedDate}T00:00:00.000Z&filters[waktu_absen][$lte]=${formattedDate}T23:59:59.999Z`
       );
-
+      
       if (!response.ok) {
-        throw new Error("Failed to add student to class");
-      }
-
-      toast.success("Siswa berhasil ditambahkan ke kelas");
-      setShowAddStudentDialog(false);
-      setSelectedStudent("");
-
-      // Refresh the page to show updated data
-      router.refresh();
-    } catch (error) {
-      console.error("Error adding student:", error);
-      toast.error("Gagal menambahkan siswa ke kelas");
-    } finally {
-      setIsAddingStudent(false);
-    }
-  };
-
-  // Function to fetch students without a class
-  const fetchAvailableStudents = async () => {
-    setIsLoadingStudents(true);
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/siswas?filters[kelas_sekolah][$null]=true&populate=*`,
-        {
-          cache: "no-store",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch available students");
+        throw new Error("Failed to fetch attendance data");
       }
 
       const result = await response.json();
-      setAvailableStudents(result.data || []);
+      setAttendanceData(result.data);
     } catch (error) {
-      console.error("Error fetching available students:", error);
-      toast.error("Gagal memuat daftar siswa");
+      console.error("Error fetching attendance data:", error);
+      toast.error("Gagal mengambil data kehadiran");
     } finally {
-      setIsLoadingStudents(false);
+      setIsLoadingAttendance(false);
     }
   };
 
-  const handleAddStudentClick = () => {
-    setShowAddStudentDialog(true);
-    fetchAvailableStudents();
+  // Fetch attendance data when date changes
+  React.useEffect(() => {
+    fetchAttendanceData(date);
+  }, [date, isWaliKelas]);
+
+  // Handle page change
+  const handlePageChange = async (newPageIndex) => {
+    const newPage = newPageIndex + 1;
+    router.push(`/dashboard/kelola-siswa?page=${newPage}&pageSize=${pagination.pageSize}`);
   };
+
+  // Handle page size change
+  const handlePageSizeChange = async (newPageSize) => {
+    router.push(`/dashboard/kelola-siswa?page=1&pageSize=${newPageSize}`);
+  };
+
+  // Filter columns based on wali kelas status
+  const filteredColumns = columns.filter(column => {
+    if (column.accessorKey === "kehadiran") {
+      return isWaliKelas;
+    }
+    return true;
+  });
 
   const table = useReactTable({
     data,
-    columns,
+    columns: filteredColumns,
     state: {
       sorting,
       columnVisibility,
@@ -414,7 +377,7 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
       pagination,
     },
     meta: {
-      removeStudentFromClass,
+      attendanceData,
     },
     getRowId: (row) => row.id.toString(),
     onSortingChange: setSorting,
@@ -425,6 +388,8 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    pageCount: serverPagination.pageCount,
+    manualPagination: true,
   });
 
   return (
@@ -434,24 +399,36 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
           <h3 className='text-lg font-medium'>{title}</h3>
         </div>
         <div className='flex flex-col sm:flex-row items-center gap-2'>
+          {isWaliKelas && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-[240px] justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP", { locale: id }) : <span>Pilih tanggal</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          )}
           <Input
-            placeholder='Filter nama...'
-            value={table.getColumn("nama")?.getFilterValue() || ""}
-            onChange={(event) =>
-              table.getColumn("nama")?.setFilterValue(event.target.value)
-            }
+            placeholder='Cari nama siswa...'
+            value={searchValue}
+            onChange={(event) => handleSearch(event.target.value)}
             className='w-full sm:max-w-sm'
           />
-          {kelasId && (
-            <Button
-              variant='outline'
-              size='sm'
-              className='w-full sm:w-auto sm:ml-auto h-8'
-              onClick={handleAddStudentClick}>
-              <PlusIcon className='mr-2 h-4 w-4' />
-              Tambah Siswa
-            </Button>
-          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -505,7 +482,18 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
+              {isLoadingAttendance ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className='h-24 text-center'>
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2Icon className="h-4 w-4 animate-spin" />
+                      Memuat data kehadiran...
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} data-state=''>
                     {row.getVisibleCells().map((cell) => (
@@ -533,16 +521,13 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
         <div className='flex flex-col sm:flex-row items-center justify-between gap-4 px-2 sm:px-4'>
           <div className='hidden md:flex flex-1 text-sm text-muted-foreground'>
             Menampilkan{" "}
-            {table.getState().pagination.pageIndex *
-              table.getState().pagination.pageSize +
-              1}{" "}
+            {serverPagination.page * serverPagination.pageSize - serverPagination.pageSize + 1}{" "}
             sampai{" "}
             {Math.min(
-              (table.getState().pagination.pageIndex + 1) *
-                table.getState().pagination.pageSize,
-              table.getFilteredRowModel().rows.length
+              serverPagination.page * serverPagination.pageSize,
+              serverPagination.total
             )}{" "}
-            dari {table.getFilteredRowModel().rows.length} data
+            dari {serverPagination.total} data
           </div>
           <div className='flex w-full flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 lg:w-fit'>
             <div className='hidden sm:flex items-center gap-2 lg:flex'>
@@ -550,13 +535,11 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
                 Baris per halaman
               </Label>
               <Select
-                value={`${table.getState().pagination.pageSize}`}
-                onValueChange={(value) => {
-                  table.setPageSize(Number(value));
-                }}>
+                value={`${pagination.pageSize}`}
+                onValueChange={handlePageSizeChange}>
                 <SelectTrigger className='w-20' id='rows-per-page'>
                   <SelectValue
-                    placeholder={table.getState().pagination.pageSize}
+                    placeholder={pagination.pageSize}
                   />
                 </SelectTrigger>
                 <SelectContent side='top'>
@@ -569,15 +552,15 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
               </Select>
             </div>
             <div className='flex w-full justify-center text-sm font-medium sm:w-fit'>
-              Halaman {table.getState().pagination.pageIndex + 1} dari{" "}
-              {table.getPageCount()}
+              Halaman {serverPagination.page} dari{" "}
+              {serverPagination.pageCount}
             </div>
             <div className='flex w-full justify-center items-center gap-2 sm:ml-0 sm:w-fit'>
               <Button
                 variant='outline'
                 className='hidden md:flex h-8 w-8 p-0'
-                onClick={() => table.setPageIndex(0)}
-                disabled={!table.getCanPreviousPage()}>
+                onClick={() => handlePageChange(0)}
+                disabled={serverPagination.page === 1}>
                 <span className='sr-only'>Ke halaman pertama</span>
                 <ChevronsLeftIcon />
               </Button>
@@ -585,8 +568,8 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
                 variant='outline'
                 className='size-8'
                 size='icon'
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}>
+                onClick={() => handlePageChange(serverPagination.page - 2)}
+                disabled={serverPagination.page === 1}>
                 <span className='sr-only'>Ke halaman sebelumnya</span>
                 <ChevronLeftIcon />
               </Button>
@@ -594,8 +577,8 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
                 variant='outline'
                 className='size-8'
                 size='icon'
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}>
+                onClick={() => handlePageChange(serverPagination.page)}
+                disabled={serverPagination.page === serverPagination.pageCount}>
                 <span className='sr-only'>Ke halaman berikutnya</span>
                 <ChevronRightIcon />
               </Button>
@@ -603,8 +586,8 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
                 variant='outline'
                 className='hidden md:flex size-8'
                 size='icon'
-                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                disabled={!table.getCanNextPage()}>
+                onClick={() => handlePageChange(serverPagination.pageCount - 1)}
+                disabled={serverPagination.page === serverPagination.pageCount}>
                 <span className='sr-only'>Ke halaman terakhir</span>
                 <ChevronsRightIcon />
               </Button>
@@ -612,84 +595,6 @@ export function DataTableKelolaSiswa({ data, title, kelasId }) {
           </div>
         </div>
       </div>
-
-      {/* Add Student Dialog */}
-      <Dialog
-        open={showAddStudentDialog}
-        onOpenChange={setShowAddStudentDialog}>
-        <DialogContent className='sm:max-w-[500px]'>
-          <DialogHeader>
-            <DialogTitle>Tambah Siswa ke Kelas</DialogTitle>
-            <DialogDescription>
-              Pilih siswa yang ingin ditambahkan ke kelas ini. Hanya siswa yang
-              belum memiliki kelas yang ditampilkan.
-            </DialogDescription>
-          </DialogHeader>
-          <div className='grid gap-4 py-4'>
-            <div className='grid grid-cols-4 items-center gap-4'>
-              <Label htmlFor='student' className='text-right'>
-                Siswa
-              </Label>
-              <div className='col-span-3'>
-                {isLoadingStudents ? (
-                  <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                    <Loader2Icon className='h-4 w-4 animate-spin' />
-                    Memuat daftar siswa...
-                  </div>
-                ) : availableStudents.length === 0 ? (
-                  <div className='text-sm text-muted-foreground'>
-                    Tidak ada siswa yang tersedia untuk ditambahkan.
-                  </div>
-                ) : (
-                  <Select
-                    value={selectedStudent}
-                    onValueChange={setSelectedStudent}>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Pilih siswa...' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableStudents.map((student) => (
-                        <SelectItem
-                          key={student.documentId}
-                          value={student.documentId.toString()}>
-                          {student.nama}{" "}
-                          {student.nomor_induk_siswa
-                            ? `(${student.nomor_induk_siswa})`
-                            : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant='outline'
-              onClick={() => setShowAddStudentDialog(false)}>
-              Batal
-            </Button>
-            <Button
-              type='submit'
-              onClick={addStudentToClass}
-              disabled={
-                !selectedStudent ||
-                isAddingStudent ||
-                availableStudents.length === 0
-              }>
-              {isAddingStudent ? (
-                <>
-                  <Loader2Icon className='mr-2 h-4 w-4 animate-spin' />
-                  Menambahkan...
-                </>
-              ) : (
-                "Tambahkan Siswa"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
