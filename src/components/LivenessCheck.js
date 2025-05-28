@@ -647,10 +647,106 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
                 confirmButtonColor: "#3085d6",
               }).then((result) => {
                 if (result.isConfirmed) {
-                  // Hapus cookie jwtToken sebelum reload
-                  document.cookie =
-                    "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                  window.location.reload();
+                  let selectedRating = 0;
+                  
+                  // Tampilkan dialog rating dengan bintang
+                  Swal.fire({
+                    title: 'Bagaimana pengalaman Anda?',
+                    text: 'Beri rating untuk pengalaman presensi Anda',
+                    icon: 'question',
+                    html: `
+                      <div class="rating-container" style="text-align: center; margin: 20px 0;">
+                        <div class="stars" style="font-size: 40px;">
+                          <span class="star" data-rating="1" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                          <span class="star" data-rating="2" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                          <span class="star" data-rating="3" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                          <span class="star" data-rating="4" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                          <span class="star" data-rating="5" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                        </div>
+                        <div class="rating-text" style="margin-top: 10px; color: #666;"></div>
+                      </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: 'Kirim Rating',
+                    cancelButtonText: 'Lewati',
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    showClass: {
+                      popup: 'animate__animated animate__fadeInDown'
+                    },
+                    hideClass: {
+                      popup: 'animate__animated animate__fadeOutUp'
+                    },
+                    didOpen: () => {
+                      const stars = document.querySelectorAll('.star');
+                      const ratingText = document.querySelector('.rating-text');
+                      
+                      const texts = {
+                        1: 'Sangat Buruk',
+                        2: 'Buruk',
+                        3: 'Cukup',
+                        4: 'Baik',
+                        5: 'Sangat Baik'
+                      };
+
+                      stars.forEach(star => {
+                        star.addEventListener('mouseover', (e) => {
+                          const rating = parseInt(e.target.getAttribute('data-rating'));
+                          stars.forEach(s => {
+                            const r = parseInt(s.getAttribute('data-rating'));
+                            s.style.color = r <= rating ? '#ffd700' : '#ccc';
+                          });
+                          ratingText.textContent = texts[rating] || '';
+                        });
+
+                        star.addEventListener('click', (e) => {
+                          selectedRating = parseInt(e.target.getAttribute('data-rating'));
+                          stars.forEach(s => {
+                            const r = parseInt(s.getAttribute('data-rating'));
+                            s.style.color = r <= selectedRating ? '#ffd700' : '#ccc';
+                          });
+                          ratingText.textContent = texts[selectedRating] || '';
+                        });
+                      });
+
+                      document.querySelector('.rating-container').addEventListener('mouseleave', () => {
+                        stars.forEach(s => {
+                          const r = parseInt(s.getAttribute('data-rating'));
+                          s.style.color = r <= selectedRating ? '#ffd700' : '#ccc';
+                        });
+                        ratingText.textContent = texts[selectedRating] || '';
+                      });
+                    },
+                    willClose: () => {
+                      if (selectedRating === 0) {
+                        Swal.showValidationMessage('Silakan pilih rating terlebih dahulu');
+                        return false;
+                      }
+                    }
+                  }).then((ratingResult) => {
+                    if (ratingResult.isConfirmed && selectedRating > 0) {
+                      // Kirim rating ke API
+                      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ratings`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          data: {
+                            pengguna: userData.data.nama,
+                            role: userData.role,
+                            rating: selectedRating
+                          }
+                        })
+                      }).catch(error => {
+                        console.error('Error sending rating:', error);
+                      });
+                    }
+                    
+                    // Hapus cookie jwtToken sebelum reload
+                    document.cookie = "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    window.location.reload();
+                  });
                 }
               });
 
