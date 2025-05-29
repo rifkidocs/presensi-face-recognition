@@ -74,6 +74,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   ChartContainer,
@@ -339,6 +340,69 @@ function DraggableRow({ row }) {
   );
 }
 
+// Add this new component before the DataTableSiswa component
+function ExportDialog({ open, onOpenChange, onExport, kelasData }) {
+  const [selectedKelas, setSelectedKelas] = React.useState("");
+  const [dateRange, setDateRange] = React.useState([null, null]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Export Presensi</DialogTitle>
+          <DialogDescription>
+            Pilih kelas dan rentang tanggal untuk export data presensi
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="kelas">Kelas</Label>
+            <Select
+              value={selectedKelas}
+              onValueChange={setSelectedKelas}
+            >
+              <SelectTrigger id="kelas">
+                <SelectValue placeholder="Pilih kelas" />
+              </SelectTrigger>
+              <SelectContent>
+                {kelasData?.map((kelas) => (
+                  <SelectItem key={kelas.id} value={kelas.nama_kelas}>
+                    {kelas.nama_kelas}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Rentang Tanggal</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={dateRange[0] ? format(dateRange[0], "yyyy-MM-dd") : ''}
+                onChange={(e) => setDateRange([e.target.value ? parseISO(e.target.value) : null, dateRange[1]])}
+              />
+              <span>sampai</span>
+              <Input
+                type="date"
+                value={dateRange[1] ? format(dateRange[1], "yyyy-MM-dd") : ''}
+                onChange={(e) => setDateRange([dateRange[0], e.target.value ? parseISO(e.target.value) : null])}
+              />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            onClick={() => onExport(selectedKelas, dateRange)}
+            disabled={!selectedKelas || !dateRange[0] || !dateRange[1]}
+          >
+            Export
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function DataTableSiswa({
   data: initialData,
   pagination: initialPagination,
@@ -369,6 +433,7 @@ export function DataTableSiswa({
   const [dateRange, setDateRange] = React.useState([null, null]);
   const [selectedDate, setSelectedDate] = React.useState(null);
   const [selectedKelas, setSelectedKelas] = React.useState("");
+  const [showExportDialog, setShowExportDialog] = React.useState(false);
   const sortableId = React.useId();
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -522,28 +587,29 @@ export function DataTableSiswa({
     }
   }
 
-  const handleExport = async (exportFormat) => {
+  const handleExport = async (kelas, dateRange) => {
     setIsLoading(true);
     try {
-      let dataToExport = [];
+      // 1. Get all students from the selected class
+      const kelasResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/kelas-sekolahs?filters[nama_kelas][$eq]=${kelas}&populate=siswas`,
+      );
+      
+      if (!kelasResponse.ok) {
+        throw new Error("Failed to fetch class data");
+      }
+      
+      const kelasData = await kelasResponse.json();
+      const students = kelasData.data[0]?.siswas || [];
 
-      if (timeFilter !== "all") {
-        // Gunakan data yang sudah difilter jika ada filter periode aktif
-        dataToExport = filteredData.map((item) => ({
-          "Nama Siswa": item.nama,
-          NIS: item.nomor_induk,
-          "Waktu Absen": format(
-            parseISO(item.waktu_absen),
-            "dd MMMM yyyy HH:mm"
-          ),
-          "Jenis Absen": item.jenis_absen,
-          Koordinat: item.koordinat,
-          Status: item.status,
-        }));
-      } else {
-        // Fetch all data for export jika tidak ada filter
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?sort=waktu_absen:DESC&pageSize=10000`,
+      // 2. Get all attendance data for the date range
+      let allAttendanceData = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const attendanceResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=${page}&pageSize=100&sort=waktu_absen:ASC&filters[siswa][kelas_sekolah][nama_kelas][$eq]=${kelas}&filters[waktu_absen][$gte]=${format(dateRange[0], "yyyy-MM-dd")}&filters[waktu_absen][$lte]=${format(dateRange[1], "yyyy-MM-dd")}&populate=siswa`,
           {
             headers: {
               Authorization: `Bearer ${jwtToken}`,
@@ -551,154 +617,72 @@ export function DataTableSiswa({
           }
         );
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch data for export");
+        if (!attendanceResponse.ok) {
+          throw new Error("Failed to fetch attendance data");
         }
 
-        const responseData = await res.json();
-        dataToExport = responseData.results.map((item) => ({
-          "Nama Siswa": item.siswa.nama,
-          NIS: item.siswa.nomor_induk_siswa,
-          "Waktu Absen": format(
-            parseISO(item.waktu_absen),
-            "dd MMMM yyyy HH:mm"
-          ),
-          "Jenis Absen": item.jenis_absen,
-          Koordinat: item.koordinat_absen,
-          Status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-        }));
+        const responseData = await attendanceResponse.json();
+        allAttendanceData = [...allAttendanceData, ...responseData.results];
+
+        if (responseData.results.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
       }
 
-      if (exportFormat === "excel") {
-        // Convert to CSV with improved formatting
-        const headers = Object.keys(dataToExport[0]);
-        const csvContent = [
-          // Add title row
-          ["Laporan Presensi Siswa"],
-          [""], // Empty row for spacing
-          // Add date range if selected
-          timeFilter === "range" && dateRange && dateRange[0] && dateRange[1]
-            ? [
-                `Periode: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(
-                  dateRange[1],
-                  "dd MMMM yyyy"
-                )}`,
-              ]
-            : timeFilter !== "all"
-            ? [
-                `Periode: ${(() => {
-                  const now = new Date();
-                  switch (timeFilter) {
-                    case "single":
-                      return format(selectedDate, "dd MMMM yyyy");
-                    case "range":
-                      return `${format(dateRange[0], "dd MMMM yyyy")} - ${format(
-                        dateRange[1],
-                        "dd MMMM yyyy"
-                      )}`;
-                    default:
-                      return "";
-                  }
-                })()}`,
-              ]
-            : ["Semua Periode"],
-          [""], // Empty row for spacing
-          // Add headers
-          headers,
-          // Add data rows
-          ...dataToExport.map((row) =>
-            headers.map((header) => {
-              const value = row[header];
-              // Escape commas and quotes in the value
-              return `"${String(value).replace(/"/g, '""')}"`;
-            })
-          ),
-        ]
-          .filter(Boolean)
-          .join("\n");
+      // 3. Create date range array
+      const dates = [];
+      let currentDate = new Date(dateRange[0]);
+      while (currentDate <= dateRange[1]) {
+        dates.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
 
-        const blob = new Blob(["\ufeff" + csvContent], {
-          type: "text/csv;charset=utf-8;",
-        });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = `presensi-siswa-${format(
-          new Date(),
-          "yyyy-MM-dd"
-        )}.csv`;
-        link.click();
-      } else if (exportFormat === "pdf") {
-        const doc = new jsPDF();
-
-        // Add title
-        doc.setFontSize(16);
-        doc.text("Laporan Presensi Siswa", 14, 15);
-
-        // Add date range if selected
-        if (timeFilter === "range" && dateRange && dateRange[0] && dateRange[1]) {
-          doc.setFontSize(10);
-          doc.text(
-            `Periode: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(
-              dateRange[1],
-              "dd MMMM yyyy"
-            )}`,
-            14,
-            25
+      // 4. Create Excel data
+      const headers = ["Nama Siswa", "NIS", ...dates.map(date => format(date, "dd/MM/yyyy"))];
+      
+      const rows = students.map(student => {
+        const row = [student.nama, student.nomor_induk_siswa];
+        
+        // Add attendance status for each date
+        dates.forEach(date => {
+          const attendance = allAttendanceData.find(
+            a => a.siswa.id === student.id && 
+            format(parseISO(a.waktu_absen), "yyyy-MM-dd") === format(date, "yyyy-MM-dd")
           );
-        } else if (timeFilter !== "all") {
-          doc.setFontSize(10);
-          const now = new Date();
-          let periodText = "";
-          switch (timeFilter) {
-            case "single":
-              periodText = `Tanggal: ${format(selectedDate, "dd MMMM yyyy")}`;
-              break;
-            case "range":
-              periodText = `Rentang: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(
-                dateRange[1],
-                "dd MMMM yyyy"
-              )}`;
-              break;
+          
+          if (attendance) {
+            row.push(attendance.jenis_absen);
+          } else {
+            row.push("Tidak Masuk");
           }
-          doc.text(periodText, 14, 25);
-        }
-
-        // Add table with improved formatting
-        autoTable(doc, {
-          startY: timeFilter !== "all" ? 30 : 20,
-          head: [Object.keys(dataToExport[0])],
-          body: dataToExport.map((item) => Object.values(item)),
-          theme: "grid",
-          styles: {
-            fontSize: 8,
-            cellPadding: 2,
-            lineColor: [41, 128, 185],
-            lineWidth: 0.1,
-          },
-          headStyles: {
-            fillColor: [41, 128, 185],
-            textColor: 255,
-            fontSize: 8,
-            fontStyle: "bold",
-            halign: "center",
-          },
-          columnStyles: {
-            0: { cellWidth: 40 }, // Nama Siswa
-            1: { cellWidth: 25 }, // NIS
-            2: { cellWidth: 35 }, // Waktu Absen
-            3: { cellWidth: 25 }, // Jenis Absen
-            4: { cellWidth: 35 }, // Koordinat
-            5: { cellWidth: 25 }, // Status
-          },
-          alternateRowStyles: {
-            fillColor: [245, 245, 245],
-          },
-          margin: { top: 20 },
         });
+        
+        return row;
+      });
 
-        // Save the PDF
-        doc.save(`presensi-siswa-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-      }
+      // 5. Create CSV content
+      const csvContent = [
+        ["Laporan Presensi Siswa"],
+        [""],
+        [`Kelas: ${kelas}`],
+        [`Periode: ${format(dateRange[0], "dd MMMM yyyy")} - ${format(dateRange[1], "dd MMMM yyyy")}`],
+        [""],
+        headers,
+        ...rows
+      ].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+
+      // 6. Download the file
+      const blob = new Blob(["\ufeff" + csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `presensi-${kelas}-${format(dateRange[0], "yyyy-MM-dd")}-${format(dateRange[1], "yyyy-MM-dd")}.csv`;
+      link.click();
+
+      setShowExportDialog(false);
     } catch (error) {
       console.error("Error exporting data:", error);
       toast.error("Failed to export data");
@@ -806,24 +790,14 @@ export function DataTableSiswa({
               </div>
             )}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='outline' className='gap-2'>
-                <DownloadIcon className='h-4 w-4' />
-                Export
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport("excel")}>
-                <FileDownIcon className='mr-2 h-4 w-4' />
-                Export Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("pdf")}>
-                <FileDownIcon className='mr-2 h-4 w-4' />
-                Export PDF
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            variant='outline' 
+            className='gap-2'
+            onClick={() => setShowExportDialog(true)}
+          >
+            <DownloadIcon className='h-4 w-4' />
+            Export
+          </Button>
         </div>
         <div className='overflow-hidden rounded-lg border'>
           <DndContext
@@ -959,6 +933,12 @@ export function DataTableSiswa({
           </div>
         </div>
       </div>
+      <ExportDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        onExport={handleExport}
+        kelasData={kelasData}
+      />
     </div>
   );
 }
