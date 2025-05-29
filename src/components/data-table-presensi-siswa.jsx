@@ -219,11 +219,17 @@ const columns = [
     header: "Foto Absen",
     cell: ({ row }) => (
       <div className='relative h-10 w-10 overflow-hidden rounded-full'>
-        <img
-          src={row.original.foto}
-          alt={`Foto absen ${row.original.nama}`}
-          className='object-cover'
-        />
+        {row.original.foto ? (
+          <img
+            src={row.original.foto}
+            alt={`Foto absen ${row.original.nama}`}
+            className='object-cover'
+          />
+        ) : (
+          <div className='flex h-full w-full items-center justify-center bg-muted text-muted-foreground'>
+            <UserIcon className='h-5 w-5' />
+          </div>
+        )}
       </div>
     ),
   },
@@ -262,11 +268,17 @@ const columns = [
               <div className='grid gap-4 py-4'>
                 <div className='flex flex-col items-center gap-4'>
                   <div className='relative h-32 w-32 overflow-hidden rounded-lg'>
-                    <img
-                      src={row.original.foto}
-                      alt={`Foto absen ${row.original.nama}`}
-                      className='h-full w-full object-cover'
-                    />
+                    {row.original.foto ? (
+                      <img
+                        src={row.original.foto}
+                        alt={`Foto absen ${row.original.nama}`}
+                        className='h-full w-full object-cover'
+                      />
+                    ) : (
+                      <div className='flex h-full w-full items-center justify-center bg-muted text-muted-foreground'>
+                        <UserIcon className='h-16 w-16' />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className='grid gap-2'>
@@ -416,11 +428,11 @@ export function DataTableSiswa({
       nomor_induk: item.siswa.nomor_induk_siswa,
       waktu_absen: item.waktu_absen,
       jenis_absen: item.jenis_absen,
-      koordinat: item.koordinat_absen,
+      koordinat: item.koordinat_absen || "-",
       status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-      foto: `${process.env.NEXT_PUBLIC_API_URL}${
-        item.foto_absen?.formats?.thumbnail?.url || ""
-      }`,
+      foto: item.foto_absen?.formats?.thumbnail?.url 
+        ? `${process.env.NEXT_PUBLIC_API_URL}${item.foto_absen.formats.thumbnail.url}`
+        : null,
     }))
   );
   const [pagination, setPagination] = React.useState(initialPagination);
@@ -521,11 +533,11 @@ export function DataTableSiswa({
           nomor_induk: item.siswa.nomor_induk_siswa,
           waktu_absen: item.waktu_absen,
           jenis_absen: item.jenis_absen,
-          koordinat: item.koordinat_absen,
+          koordinat: item.koordinat_absen || "-",
           status: item.is_validated ? "Tervalidasi" : "Belum Tervalidasi",
-          foto: `${process.env.NEXT_PUBLIC_API_URL}${
-            item.foto_absen?.formats?.thumbnail?.url || ""
-          }`,
+          foto: item.foto_absen?.formats?.thumbnail?.url 
+            ? `${process.env.NEXT_PUBLIC_API_URL}${item.foto_absen.formats.thumbnail.url}`
+            : null,
         }))
       );
       setPagination(responseData.pagination);
@@ -609,7 +621,7 @@ export function DataTableSiswa({
 
       while (hasMore) {
         const attendanceResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=${page}&pageSize=100&sort=waktu_absen:ASC&filters[siswa][kelas_sekolah][nama_kelas][$eq]=${kelas}&filters[waktu_absen][$gte]=${format(dateRange[0], "yyyy-MM-dd")}&filters[waktu_absen][$lte]=${format(dateRange[1], "yyyy-MM-dd")}&populate=siswa`,
+          `${process.env.NEXT_PUBLIC_API_URL}/content-manager/collection-types/api::presensi-siswa.presensi-siswa?page=${page}&pageSize=100&sort=waktu_absen:ASC&filters[siswa][kelas_sekolah][nama_kelas][$eq]=${kelas}&filters[waktu_absen][$gte]=${format(dateRange[0], "yyyy-MM-dd")}T00:00:00.000Z&filters[waktu_absen][$lte]=${format(dateRange[1], "yyyy-MM-dd")}T23:59:59.999Z&populate=siswa`,
           {
             headers: {
               Authorization: `Bearer ${jwtToken}`,
@@ -653,9 +665,17 @@ export function DataTableSiswa({
           );
           
           if (attendance) {
-            row.push(attendance.jenis_absen);
+            // Map the attendance status to proper display text
+            const statusMap = {
+              'masuk': 'Hadir',
+              'telat': 'Terlambat',
+              'pulang': 'Pulang',
+              'izin': 'Izin',
+              'sakit': 'Sakit'
+            };
+            row.push(statusMap[attendance.jenis_absen] || attendance.jenis_absen);
           } else {
-            row.push("Tidak Masuk");
+            row.push("Tidak Hadir");
           }
         });
         
