@@ -109,10 +109,34 @@ export default async function Page() {
     }));
   }
 
+  async function getRatings() {
+    let allRatings = [];
+    let currentPage = 1;
+    let totalPages = 1;
+
+    while (currentPage <= totalPages) {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/ratings?pagination[page]=${currentPage}&pagination[pageSize]=25`,
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch ratings data");
+      }
+
+      const data = await res.json();
+      allRatings = [...allRatings, ...data.data];
+      totalPages = data.meta.pagination.pageCount;
+      currentPage++;
+    }
+
+    return allRatings;
+  }
+
   const userData = await getUserData();
   const presensiSiswa = await getPresensiSiswa();
   const presensiGuru = await getPresensiGuru();
   const presensiPegawai = await getPresensiPegawai();
+  const ratings = await getRatings();
 
   return (
     <SidebarProvider>
@@ -126,6 +150,7 @@ export default async function Page() {
                 presensiSiswa={presensiSiswa}
                 presensiGuru={presensiGuru}
                 presensiPegawai={presensiPegawai}
+                ratings={ratings}
               />
               <div className='px-4 lg:px-6'>
                 <ChartAreaInteractive 

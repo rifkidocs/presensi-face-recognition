@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUpIcon } from "lucide-react";
+import { TrendingUpIcon, StarIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export function SectionCards({ presensiSiswa, presensiGuru, presensiPegawai }) {
+export function SectionCards({ presensiSiswa, presensiGuru, presensiPegawai, ratings }) {
   const [totalSiswa, setTotalSiswa] = useState(0);
   const [totalGuru, setTotalGuru] = useState(0);
 
@@ -56,11 +56,19 @@ export function SectionCards({ presensiSiswa, presensiGuru, presensiPegawai }) {
     );
   };
 
+  // Calculate average rating
+  const calculateAverageRating = () => {
+    if (!ratings || ratings.length === 0) return 0;
+    const totalRating = ratings.reduce((sum, item) => sum + item.rating, 0);
+    return (totalRating / ratings.length).toFixed(1);
+  };
+
   const siswaMasukHariIni = countTodayPresence(presensiSiswa);
   const guruMasukHariIni = countTodayPresence(presensiGuru);
   const pegawaiMasukHariIni = countTodayPresence(presensiPegawai);
   const totalPresensiHariIni =
     siswaMasukHariIni + guruMasukHariIni + pegawaiMasukHariIni;
+  const averageRating = calculateAverageRating();
 
   return (
     <div className='*:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card lg:px-6'>
@@ -143,6 +151,29 @@ export function SectionCards({ presensiSiswa, presensiGuru, presensiPegawai }) {
           </div>
           <div className='text-muted-foreground'>
             Total data: {presensiPegawai?.length || 0}
+          </div>
+        </CardFooter>
+      </Card>
+      <Card className='@container/card'>
+        <CardHeader className='relative'>
+          <CardDescription>Rating Aplikasi</CardDescription>
+          <CardTitle className='@[250px]/card:text-3xl text-2xl font-semibold tabular-nums flex items-center gap-2'>
+            {averageRating}
+            <StarIcon className="size-6 text-yellow-500 fill-yellow-500" />
+          </CardTitle>
+          <div className='absolute right-4 top-4'>
+            <Badge variant='outline' className='flex gap-1 rounded-lg text-xs'>
+              <StarIcon className='size-3' />
+              Rating
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardFooter className='flex-col items-start gap-1 text-sm'>
+          <div className='line-clamp-1 flex gap-2 font-medium'>
+            Rata-rata rating dari pengguna
+          </div>
+          <div className='text-muted-foreground'>
+            Total rating: {ratings?.length || 0}
           </div>
         </CardFooter>
       </Card>
