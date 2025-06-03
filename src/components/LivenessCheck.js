@@ -43,7 +43,9 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [faceDescriptor, setFaceDescriptor] = useState(null);
   const [faceDetectionProgress, setFaceDetectionProgress] = useState(0);
-  const [verificationStatus, setVerificationStatus] = useState('');
+  const [verificationStatus, setVerificationStatus] = useState("");
+  const [enableFinalFaceDetection, setEnableFinalFaceDetection] =
+    useState(false);
 
   // Konstanta untuk konfigurasi deteksi
   const REQUIRED_DETECTIONS = 3;
@@ -69,17 +71,17 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
     {
       text: "Silakan angkat kepala Anda",
       icon: "👆",
-      description: "Angkat kepala Anda ke atas dengan jelas"
+      description: "Angkat kepala Anda ke atas dengan jelas",
     },
     {
       text: "Silakan gerakkan kepala Anda ke kiri atau kanan",
       icon: "↔️",
-      description: "Gerakkan kepala Anda ke kiri atau kanan dengan jelas"
+      description: "Gerakkan kepala Anda ke kiri atau kanan dengan jelas",
     },
     {
       text: "Silakan anggukkan kepala Anda",
       icon: "⬇️",
-      description: "Anggukkan kepala Anda dengan jelas"
+      description: "Anggukkan kepala Anda dengan jelas",
     },
   ];
 
@@ -213,7 +215,11 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const loadModels = useCallback(async () => {
     setLoading(true);
     try {
-      const modelNames = ["tiny_face_detector", "face_landmark_68", "face_recognition"];
+      const modelNames = [
+        "tiny_face_detector",
+        "face_landmark_68",
+        "face_recognition",
+      ];
       const modelPromises = modelNames.map(async (modelName) => {
         const isModelCached = await checkModelInIndexedDB(modelName);
 
@@ -259,7 +265,10 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
               descriptions.push(detection.descriptor);
             }
           } catch (error) {
-            console.warn(`Error loading image for ${userData.data.nama}:`, error);
+            console.warn(
+              `Error loading image for ${userData.data.nama}:`,
+              error
+            );
           }
         }
 
@@ -290,9 +299,9 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   const handleMovementComplete = useCallback((index) => {
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 1000);
-    setCompletedInstructions(prev => [...prev, index]);
+    setCompletedInstructions((prev) => [...prev, index]);
     setCurrentInstructionIndex(null);
-    setCurrentStep(prev => prev + 1);
+    setCurrentStep((prev) => prev + 1);
   }, []);
 
   const detectFace = useCallback(async () => {
@@ -372,7 +381,10 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
               const currentEyebrowY = (leftEyebrow.y + rightEyebrow.y) / 2;
               const eyebrowMovement = initialEyebrowY.current - currentEyebrowY;
 
-              if (eyebrowMovement > eyebrowThreshold && !eyebrowRaiseDone.current) {
+              if (
+                eyebrowMovement > eyebrowThreshold &&
+                !eyebrowRaiseDone.current
+              ) {
                 eyebrowRaiseDone.current = true;
                 handleMovementComplete(0);
               }
@@ -395,7 +407,10 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
 
               const horizontalMovement = maxNoseX.current - minNoseX.current;
 
-              if (horizontalMovement > headTurnThreshold && !headTurnDone.current) {
+              if (
+                horizontalMovement > headTurnThreshold &&
+                !headTurnDone.current
+              ) {
                 headTurnDone.current = true;
                 handleMovementComplete(1);
               }
@@ -444,390 +459,72 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
       setTimeout(() => setFlashing(false), 500);
     } else if (!isSubmitted) {
       try {
-        let detectionCount = 0;
-        let startTime = Date.now();
-        let lastDetectionTime = startTime;
-        let faceDescriptor = null;
+        if (enableFinalFaceDetection) {
+          let detectionCount = 0;
+          let startTime = Date.now();
+          let lastDetectionTime = startTime;
+          let faceDescriptor = null;
 
-        const verifyFace = async () => {
-          const detections = await faceapi
-            .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks()
-            .withFaceDescriptors();
+          const verifyFace = async () => {
+            const detections = await faceapi
+              .detectAllFaces(
+                videoRef.current,
+                new faceapi.TinyFaceDetectorOptions()
+              )
+              .withFaceLandmarks()
+              .withFaceDescriptors();
 
-          if (detections.length > 0) {
-            const currentTime = Date.now();
-            if (currentTime - lastDetectionTime >= 100) {
-              detectionCount++;
-              faceDescriptor = detections[0].descriptor;
-              lastDetectionTime = currentTime;
-              
-              const progress = Math.min(100, (detectionCount / REQUIRED_DETECTIONS) * 100);
-              setFaceDetectionProgress(progress);
-            }
-          }
+            if (detections.length > 0) {
+              const currentTime = Date.now();
+              if (currentTime - lastDetectionTime >= 100) {
+                detectionCount++;
+                faceDescriptor = detections[0].descriptor;
+                lastDetectionTime = currentTime;
 
-          if (detectionCount >= REQUIRED_DETECTIONS && Date.now() - startTime >= MIN_DETECTION_TIME_MS) {
-            if (faceMatcher && faceDescriptor) {
-              const match = faceMatcher.findBestMatch(faceDescriptor);
-              if (match.distance > 0.5) {
-                setFaceVerificationFailed(true);
-                setVerificationStatus('failed');
-                Swal.fire({
-                  title: "Verifikasi Gagal",
-                  text: "Wajah tidak cocok dengan data yang terdaftar. Pastikan Anda adalah orang yang sama dengan yang melakukan verifikasi sebelumnya.",
-                  icon: "error",
-                  confirmButtonText: "OK",
-                  confirmButtonColor: "#3085d6",
-                }).then(() => {
-                  window.location.reload();
-                });
-                onVerificationComplete(false);
-                return;
-              }
-            }
-
-            setVerificationStatus('success');
-            setIsLivenessVerified(true);
-            setIsSubmitted(true);
-
-            // Ambil foto dari photoCanvas (tanpa landmark) dan konversi ke blob
-            const photoData = photoCanvasRef.current.toDataURL("image/jpeg");
-            const blob = await (await fetch(photoData)).blob();
-
-            // Buat FormData untuk upload file
-            const formData = new FormData();
-            formData.append("files", blob, "presence-photo.jpg");
-
-            // Dapatkan koordinat lokasi pengguna
-            let koordinat_absen = "";
-            try {
-              const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject);
-              });
-              koordinat_absen = `${position.coords.latitude}, ${position.coords.longitude}`;
-            } catch (err) {
-              console.error("Error getting location:", err);
-              setError(
-                "Gagal mendapatkan lokasi. Pastikan Anda mengizinkan akses lokasi."
-              );
-              return;
-            }
-
-            setSubmitting(true);
-            setError(null);
-
-            try {
-              // Upload file foto terlebih dahulu
-              const uploadResponse = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
-                {
-                  method: "POST",
-                  body: formData,
-                }
-              );
-
-              if (!uploadResponse.ok) {
-                throw new Error("Gagal mengupload foto");
-              }
-
-              const uploadResult = await uploadResponse.json();
-              const fotoId = uploadResult[0].id; // Mengambil ID foto dari array response
-
-              // Dapatkan jadwal dan tipe presensi yang aktif
-              const schedule = await getActiveSchedule(userData.role);
-              const presenceTime = isWithinPresenceTime(schedule);
-
-              // Dapatkan tanggal hari ini
-              const today = new Date().toISOString().split("T")[0];
-
-              // Lanjutkan dengan menyimpan data presensi
-              let endpoint = "";
-              let filterField = "";
-
-              // Tentukan endpoint dan filter berdasarkan role
-              switch (userData.role) {
-                case "siswa":
-                  endpoint = "presensi-siswas";
-                  filterField = "siswa";
-                  break;
-                case "guru":
-                  endpoint = "presensi-gurus";
-                  filterField = "guru";
-                  break;
-                case "pegawai":
-                  endpoint = "presensi-pegawais";
-                  filterField = "pegawai";
-                  break;
-                default:
-                  throw new Error("Role tidak valid");
-              }
-              const checkResponse = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
-                {
-                  method: "GET",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
-              );
-
-              if (!checkResponse.ok) {
-                throw new Error("Gagal mengecek data presensi");
-              }
-
-              const existingPresence = await checkResponse.json();
-              if (existingPresence.data.length > 0) {
-                Swal.fire({
-                  title: "Presensi Sudah Dilakukan",
-                  text: `Anda sudah melakukan presensi ${presenceTime.type} hari ini.`,
-                  icon: "info",
-                  confirmButtonText: "OK",
-                  confirmButtonColor: "#3085d6",
-                });
-                throw new Error(`Sudah presensi ${presenceTime.type} hari ini`);
-              }
-
-              // Siapkan dan kirim data presensi
-              const presenceData = {
-                data: {
-                  waktu_absen: new Date().toISOString(),
-                  jenis_absen: presenceTime.type,
-                  koordinat_absen,
-                  is_validated: true,
-                  foto_absen: {
-                    id: fotoId,
-                  },
-                  [userData.role]: {
-                    id: userData.data.id,
-                  },
-                },
-              };
-              if (!presenceTime.isValid) {
-                let alertMessage = "Tidak ada jadwal presensi yang aktif saat ini.";
-                if (schedule && schedule.attributes) {
-                  alertMessage = `Jadwal presensi masuk: ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}\nJadwal presensi pulang: ${schedule.attributes.jam_pulang} - ${schedule.attributes.batas_jam_pulang}`;
-                }
-                Swal.fire({
-                  title: "Di Luar Waktu Presensi",
-                  text: alertMessage,
-                  icon: "error",
-                  confirmButtonText: "OK",
-                  confirmButtonColor: "#3085d6",
-                });
-                throw new Error("Di luar jadwal presensi");
-              }
-
-              // Kirim data presensi
-              const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                  },
-                  body: JSON.stringify(presenceData),
-                }
-              );
-
-              if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(
-                  errorData.error?.message || "Gagal mengirim data presensi"
+                const progress = Math.min(
+                  100,
+                  (detectionCount / REQUIRED_DETECTIONS) * 100
                 );
+                setFaceDetectionProgress(progress);
               }
+            }
 
-              // Tampilkan notifikasi sukses dan tunggu konfirmasi
-              Swal.fire({
-                title: "Berhasil!",
-                text: "Verifikasi Liveness Berhasil! Presensi Anda telah berhasil dicatat.",
-                icon: "success",
-                confirmButtonText: "OK",
-                confirmButtonColor: "#3085d6",
-              }).then((result) => {
-                if (result.isConfirmed) {
-                  let selectedRating = 0;
-                  
-                  // Tampilkan dialog rating dengan bintang
+            if (
+              detectionCount >= REQUIRED_DETECTIONS &&
+              Date.now() - startTime >= MIN_DETECTION_TIME_MS
+            ) {
+              if (faceMatcher && faceDescriptor) {
+                const match = faceMatcher.findBestMatch(faceDescriptor);
+                if (match.distance > 0.5) {
+                  setFaceVerificationFailed(true);
+                  setVerificationStatus("failed");
                   Swal.fire({
-                    title: 'Bagaimana pengalaman Anda?',
-                    text: 'Beri rating untuk pengalaman presensi Anda',
-                    icon: 'question',
-                    html: `
-                      <div class="rating-container" style="text-align: center; margin: 20px 0;">
-                        <div class="stars" style="font-size: 40px;">
-                          <span class="star" data-rating="1" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
-                          <span class="star" data-rating="2" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
-                          <span class="star" data-rating="3" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
-                          <span class="star" data-rating="4" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
-                          <span class="star" data-rating="5" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
-                        </div>
-                        <div class="rating-text" style="margin-top: 10px; color: #666;"></div>
-                      </div>
-                    `,
-                    showCancelButton: true,
-                    confirmButtonText: 'Kirim Rating',
-                    cancelButtonText: 'Lewati',
-                    confirmButtonColor: '#3085d6',
-                    cancelButtonColor: '#d33',
-                    showClass: {
-                      popup: 'animate__animated animate__fadeInDown'
-                    },
-                    hideClass: {
-                      popup: 'animate__animated animate__fadeOutUp'
-                    },
-                    didOpen: () => {
-                      const stars = document.querySelectorAll('.star');
-                      const ratingText = document.querySelector('.rating-text');
-                      
-                      const texts = {
-                        1: 'Sangat Buruk',
-                        2: 'Buruk',
-                        3: 'Cukup',
-                        4: 'Baik',
-                        5: 'Sangat Baik'
-                      };
-
-                      stars.forEach(star => {
-                        star.addEventListener('mouseover', (e) => {
-                          const rating = parseInt(e.target.getAttribute('data-rating'));
-                          stars.forEach(s => {
-                            const r = parseInt(s.getAttribute('data-rating'));
-                            s.style.color = r <= rating ? '#ffd700' : '#ccc';
-                          });
-                          ratingText.textContent = texts[rating] || '';
-                        });
-
-                        star.addEventListener('click', (e) => {
-                          selectedRating = parseInt(e.target.getAttribute('data-rating'));
-                          stars.forEach(s => {
-                            const r = parseInt(s.getAttribute('data-rating'));
-                            s.style.color = r <= selectedRating ? '#ffd700' : '#ccc';
-                          });
-                          ratingText.textContent = texts[selectedRating] || '';
-                        });
-                      });
-
-                      document.querySelector('.rating-container').addEventListener('mouseleave', () => {
-                        stars.forEach(s => {
-                          const r = parseInt(s.getAttribute('data-rating'));
-                          s.style.color = r <= selectedRating ? '#ffd700' : '#ccc';
-                        });
-                        ratingText.textContent = texts[selectedRating] || '';
-                      });
-                    },
-                    willClose: () => {
-                      if (selectedRating === 0) {
-                        Swal.showValidationMessage('Silakan pilih rating terlebih dahulu');
-                        return false;
-                      }
-                    }
-                  }).then((ratingResult) => {
-                    if (ratingResult.isConfirmed && selectedRating > 0) {
-                      // Kirim rating ke API
-                      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ratings`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                          data: {
-                            pengguna: userData.data.nama,
-                            role: userData.role,
-                            rating: selectedRating
-                          }
-                        })
-                      }).catch(error => {
-                        console.error('Error sending rating:', error);
-                      });
-                    }
-                    
-                    // Hapus cookie jwtToken sebelum reload
-                    document.cookie = "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                    title: "Verifikasi Gagal",
+                    text: "Wajah tidak cocok dengan data yang terdaftar. Pastikan Anda adalah orang yang sama dengan yang melakukan verifikasi sebelumnya.",
+                    icon: "error",
+                    confirmButtonText: "OK",
+                    confirmButtonColor: "#3085d6",
+                  }).then(() => {
                     window.location.reload();
                   });
-                }
-              });
-
-              // Hentikan stream kamera setelah verifikasi selesai
-              if (videoRef.current?.srcObject) {
-                const stream = videoRef.current.srcObject;
-                const tracks = stream.getTracks();
-                tracks.forEach((track) => {
-                  if (track.readyState === "live") {
-                    track.stop();
-                  }
-                });
-                videoRef.current.srcObject = null;
-                videoRef.current.pause();
-                videoRef.current.load();
-              }
-
-              // Bersihkan canvas
-              if (canvasRef.current) {
-                const ctx = canvasRef.current.getContext("2d");
-                if (ctx) {
-                  ctx.clearRect(
-                    0,
-                    0,
-                    canvasRef.current.width,
-                    canvasRef.current.height
-                  );
+                  onVerificationComplete(false);
+                  return;
                 }
               }
-              if (photoCanvasRef.current) {
-                const ctx = photoCanvasRef.current.getContext("2d");
-                if (ctx) {
-                  ctx.clearRect(
-                    0,
-                    0,
-                    photoCanvasRef.current.width,
-                    photoCanvasRef.current.height
-                  );
-                }
-              }
-
-              onVerificationComplete(true);
-            } catch (err) {
-              setError(err.message);
-              console.error("Error sending presence data:", err);
-              if (
-                err.message === "Sudah presensi hari ini" ||
-                err.message === "Tidak ada jadwal presensi aktif" ||
-                err.message === "Di luar jadwal presensi"
-              ) {
-                // Alert sudah ditampilkan sebelumnya
-              } else if (err.message.includes("Sudah presensi")) {
-                // Tampilkan pesan spesifik untuk presensi yang sudah dilakukan
-                Swal.fire({
-                  title: "Presensi Sudah Dilakukan",
-                  text: err.message,
-                  icon: "info",
-                  confirmButtonText: "OK",
-                  confirmButtonColor: "#3085d6",
-                });
-              } else {
-                Swal.fire({
-                  title: "Terjadi Kesalahan",
-                  text: "Terjadi kesalahan saat mencatat presensi. Silakan periksa koneksi internet Anda dan coba lagi. Jika masalah berlanjut, hubungi administrator.",
-                  icon: "error",
-                  confirmButtonText: "OK",
-                  confirmButtonColor: "#3085d6",
-                });
-              }
-            } finally {
-              setSubmitting(false);
+              proceedWithSubmission();
+            } else {
+              requestAnimationFrame(verifyFace);
             }
-          } else {
-            requestAnimationFrame(verifyFace);
-          }
-        };
+          };
 
-        verifyFace();
+          verifyFace();
+        } else {
+          // Skip final face detection and proceed directly to submission
+          proceedWithSubmission();
+        }
       } catch (error) {
         console.error("Error during face verification:", error);
-        setVerificationStatus('failed');
+        setVerificationStatus("failed");
         Swal.fire({
           title: "Verifikasi Gagal",
           text: "Terjadi kesalahan saat verifikasi wajah. Silakan coba lagi.",
@@ -840,7 +537,356 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
         onVerificationComplete(false);
       }
     }
-  }, [completedInstructions, onVerificationComplete, faceMatcher]);
+  }, [
+    completedInstructions,
+    onVerificationComplete,
+    faceMatcher,
+    enableFinalFaceDetection,
+  ]);
+
+  const proceedWithSubmission = async () => {
+    setVerificationStatus("success");
+    setIsLivenessVerified(true);
+    setIsSubmitted(true);
+
+    // Ambil foto dari photoCanvas (tanpa landmark) dan konversi ke blob
+    const photoData = photoCanvasRef.current.toDataURL("image/jpeg");
+    const blob = await (await fetch(photoData)).blob();
+
+    // Buat FormData untuk upload file
+    const formData = new FormData();
+    formData.append("files", blob, "presence-photo.jpg");
+
+    // Dapatkan koordinat lokasi pengguna
+    let koordinat_absen = "";
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject);
+      });
+      koordinat_absen = `${position.coords.latitude}, ${position.coords.longitude}`;
+    } catch (err) {
+      console.error("Error getting location:", err);
+      setError(
+        "Gagal mendapatkan lokasi. Pastikan Anda mengizinkan akses lokasi."
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // Upload file foto terlebih dahulu
+      const uploadResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!uploadResponse.ok) {
+        throw new Error("Gagal mengupload foto");
+      }
+
+      const uploadResult = await uploadResponse.json();
+      const fotoId = uploadResult[0].id;
+
+      // Dapatkan jadwal dan tipe presensi yang aktif
+      const schedule = await getActiveSchedule(userData.role);
+      const presenceTime = isWithinPresenceTime(schedule);
+
+      // Dapatkan tanggal hari ini
+      const today = new Date().toISOString().split("T")[0];
+
+      // Lanjutkan dengan menyimpan data presensi
+      let endpoint = "";
+      let filterField = "";
+
+      // Tentukan endpoint dan filter berdasarkan role
+      switch (userData.role) {
+        case "siswa":
+          endpoint = "presensi-siswas";
+          filterField = "siswa";
+          break;
+        case "guru":
+          endpoint = "presensi-gurus";
+          filterField = "guru";
+          break;
+        case "pegawai":
+          endpoint = "presensi-pegawais";
+          filterField = "pegawai";
+          break;
+        default:
+          throw new Error("Role tidak valid");
+      }
+
+      const checkResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}?filters[${filterField}][id][$eq]=${userData.data.id}&filters[waktu_absen][$gte]=${today}&filters[jenis_absen][$eq]=${presenceTime.type}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!checkResponse.ok) {
+        throw new Error("Gagal mengecek data presensi");
+      }
+
+      const existingPresence = await checkResponse.json();
+      if (existingPresence.data.length > 0) {
+        Swal.fire({
+          title: "Presensi Sudah Dilakukan",
+          text: `Anda sudah melakukan presensi ${presenceTime.type} hari ini.`,
+          icon: "info",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#3085d6",
+        });
+        throw new Error(`Sudah presensi ${presenceTime.type} hari ini`);
+      }
+
+      // Siapkan dan kirim data presensi
+      const presenceData = {
+        data: {
+          waktu_absen: new Date().toISOString(),
+          jenis_absen: presenceTime.type,
+          koordinat_absen,
+          is_validated: true,
+          foto_absen: {
+            id: fotoId,
+          },
+          [userData.role]: {
+            id: userData.data.id,
+          },
+        },
+      };
+
+      if (!presenceTime.isValid) {
+        let alertMessage = "Tidak ada jadwal presensi yang aktif saat ini.";
+        if (schedule && schedule.attributes) {
+          alertMessage = `Jadwal presensi masuk: ${schedule.attributes.jam_masuk} - ${schedule.attributes.batas_jam_masuk}\nJadwal presensi pulang: ${schedule.attributes.jam_pulang} - ${schedule.attributes.batas_jam_pulang}`;
+        }
+        Swal.fire({
+          title: "Di Luar Waktu Presensi",
+          text: alertMessage,
+          icon: "error",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#3085d6",
+        });
+        throw new Error("Di luar jadwal presensi");
+      }
+
+      // Kirim data presensi
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/${endpoint}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(presenceData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error?.message || "Gagal mengirim data presensi"
+        );
+      }
+
+      // Tampilkan notifikasi sukses dan tunggu konfirmasi
+      Swal.fire({
+        title: "Berhasil!",
+        text: "Verifikasi Liveness Berhasil! Presensi Anda telah berhasil dicatat.",
+        icon: "success",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#3085d6",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          let selectedRating = 0;
+
+          // Tampilkan dialog rating dengan bintang
+          Swal.fire({
+            title: "Bagaimana pengalaman Anda?",
+            text: "Beri rating untuk pengalaman presensi Anda",
+            icon: "question",
+            html: `
+              <div class="rating-container" style="text-align: center; margin: 20px 0;">
+                <div class="stars" style="font-size: 40px;">
+                  <span class="star" data-rating="1" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                  <span class="star" data-rating="2" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                  <span class="star" data-rating="3" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                  <span class="star" data-rating="4" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                  <span class="star" data-rating="5" style="cursor: pointer; margin: 0 5px; color: #ccc;">★</span>
+                </div>
+                <div class="rating-text" style="margin-top: 10px; color: #666;"></div>
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: "Kirim Rating",
+            cancelButtonText: "Lewati",
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            showClass: {
+              popup: "animate__animated animate__fadeInDown",
+            },
+            hideClass: {
+              popup: "animate__animated animate__fadeOutUp",
+            },
+            didOpen: () => {
+              const stars = document.querySelectorAll(".star");
+              const ratingText = document.querySelector(".rating-text");
+
+              const texts = {
+                1: "Sangat Buruk",
+                2: "Buruk",
+                3: "Cukup",
+                4: "Baik",
+                5: "Sangat Baik",
+              };
+
+              stars.forEach((star) => {
+                star.addEventListener("mouseover", (e) => {
+                  const rating = parseInt(e.target.getAttribute("data-rating"));
+                  stars.forEach((s) => {
+                    const r = parseInt(s.getAttribute("data-rating"));
+                    s.style.color = r <= rating ? "#ffd700" : "#ccc";
+                  });
+                  ratingText.textContent = texts[rating] || "";
+                });
+
+                star.addEventListener("click", (e) => {
+                  selectedRating = parseInt(
+                    e.target.getAttribute("data-rating")
+                  );
+                  stars.forEach((s) => {
+                    const r = parseInt(s.getAttribute("data-rating"));
+                    s.style.color = r <= selectedRating ? "#ffd700" : "#ccc";
+                  });
+                  ratingText.textContent = texts[selectedRating] || "";
+                });
+              });
+
+              document
+                .querySelector(".rating-container")
+                .addEventListener("mouseleave", () => {
+                  stars.forEach((s) => {
+                    const r = parseInt(s.getAttribute("data-rating"));
+                    s.style.color = r <= selectedRating ? "#ffd700" : "#ccc";
+                  });
+                  ratingText.textContent = texts[selectedRating] || "";
+                });
+            },
+            willClose: () => {
+              if (selectedRating === 0) {
+                Swal.showValidationMessage(
+                  "Silakan pilih rating terlebih dahulu"
+                );
+                return false;
+              }
+            },
+          }).then((ratingResult) => {
+            if (ratingResult.isConfirmed && selectedRating > 0) {
+              // Kirim rating ke API
+              fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ratings`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  data: {
+                    pengguna: userData.data.nama,
+                    role: userData.role,
+                    rating: selectedRating,
+                  },
+                }),
+              }).catch((error) => {
+                console.error("Error sending rating:", error);
+              });
+            }
+
+            // Hapus cookie jwtToken sebelum reload
+            document.cookie =
+              "jwtToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            window.location.reload();
+          });
+        }
+      });
+
+      // Hentikan stream kamera setelah verifikasi selesai
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject;
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => {
+          if (track.readyState === "live") {
+            track.stop();
+          }
+        });
+        videoRef.current.srcObject = null;
+        videoRef.current.pause();
+        videoRef.current.load();
+      }
+
+      // Bersihkan canvas
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(
+            0,
+            0,
+            canvasRef.current.width,
+            canvasRef.current.height
+          );
+        }
+      }
+      if (photoCanvasRef.current) {
+        const ctx = photoCanvasRef.current.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(
+            0,
+            0,
+            photoCanvasRef.current.width,
+            photoCanvasRef.current.height
+          );
+        }
+      }
+
+      onVerificationComplete(true);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error sending presence data:", err);
+      if (
+        err.message === "Sudah presensi hari ini" ||
+        err.message === "Tidak ada jadwal presensi aktif" ||
+        err.message === "Di luar jadwal presensi"
+      ) {
+        // Alert sudah ditampilkan sebelumnya
+      } else if (err.message.includes("Sudah presensi")) {
+        // Tampilkan pesan spesifik untuk presensi yang sudah dilakukan
+        Swal.fire({
+          title: "Presensi Sudah Dilakukan",
+          text: err.message,
+          icon: "info",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#3085d6",
+        });
+      } else {
+        Swal.fire({
+          title: "Terjadi Kesalahan",
+          text: "Terjadi kesalahan saat mencatat presensi. Silakan periksa koneksi internet Anda dan coba lagi. Jika masalah berlanjut, hubungi administrator.",
+          icon: "error",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#3085d6",
+        });
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Effects
   useEffect(() => {
@@ -892,9 +938,9 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
   }, [isLivenessVerified, onVerificationComplete]);
 
   return (
-    <div className='relative w-full max-w-4xl mx-auto'>
+    <div className="relative w-full max-w-4xl mx-auto">
       {loading ? (
-        <div className='text-center text-white'>
+        <div className="text-center text-white">
           <p>Memuat model pengenalan wajah...</p>
         </div>
       ) : !isLivenessVerified ? (
@@ -930,20 +976,21 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
                 : flashing
                 ? "bg-blue-500 scale-105"
                 : "bg-gray-800"
-            }`}>
+            }`}
+          >
             <div className="text-4xl mb-2 animate-bounce">
               {instructions[currentInstructionIndex]?.icon}
             </div>
-            <p className='text-lg text-white font-semibold'>
+            <p className="text-lg text-white font-semibold">
               {instructions[currentInstructionIndex]?.text}
             </p>
-            <p className='text-sm text-gray-300 mt-1'>
+            <p className="text-sm text-gray-300 mt-1">
               {instructions[currentInstructionIndex]?.description}
             </p>
           </div>
 
           {/* Video Container */}
-          <div className='relative border-4 border-gray-700 rounded-lg overflow-hidden'>
+          <div className="relative border-4 border-gray-700 rounded-lg overflow-hidden">
             <video
               ref={videoRef}
               autoPlay
@@ -953,42 +1000,54 @@ const LivenessCheck = ({ onVerificationComplete, userData }) => {
                 const interval = setInterval(detectFace, 100);
                 return () => clearInterval(interval);
               }}
-              className='w-full h-auto'
+              className="w-full h-auto"
             />
             <canvas
               ref={canvasRef}
-              className='absolute top-0 left-0 w-full h-full'
+              className="absolute top-0 left-0 w-full h-full"
             />
-            <canvas ref={photoCanvasRef} className='hidden' />
-            
+            <canvas ref={photoCanvasRef} className="hidden" />
+
             {/* Face Detection Progress */}
-            {completedInstructions.length === instructions.length && !isSubmitted && (
-              <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-white text-sm">Verifikasi Wajah:</span>
-                  <span className="text-white text-sm font-bold">{Math.round(faceDetectionProgress)}%</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-3">
-                  <div 
-                    className={`h-3 rounded-full transition-all duration-300 ${
-                      verificationStatus === 'failed' ? 'bg-red-500' : 'bg-green-500'
-                    }`}
-                    style={{ width: `${faceDetectionProgress}%` }}
-                  >
-                    {faceDetectionProgress > 0 && (
-                      <div className="h-full w-2 bg-white absolute right-0 animate-pulse"></div>
-                    )}
+            {completedInstructions.length === instructions.length &&
+              !isSubmitted &&
+              enableFinalFaceDetection && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-white text-sm">
+                      Verifikasi Wajah:
+                    </span>
+                    <span className="text-white text-sm font-bold">
+                      {Math.round(faceDetectionProgress)}%
+                    </span>
                   </div>
+                  <div className="w-full bg-gray-700 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-300 ${
+                        verificationStatus === "failed"
+                          ? "bg-red-500"
+                          : "bg-green-500"
+                      }`}
+                      style={{ width: `${faceDetectionProgress}%` }}
+                    >
+                      {faceDetectionProgress > 0 && (
+                        <div className="h-full w-2 bg-white absolute right-0 animate-pulse"></div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-300 mt-1 text-center">
+                    {verificationStatus === "failed"
+                      ? "Verifikasi gagal, halaman akan dimuat ulang..."
+                      : faceDetectionProgress < 30
+                      ? "Tahan wajah anda tepat di depan kamera..."
+                      : faceDetectionProgress < 60
+                      ? "Sedang memverifikasi identitas..."
+                      : faceDetectionProgress < 90
+                      ? "Hampir selesai..."
+                      : "Verifikasi berhasil!"}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-300 mt-1 text-center">
-                  {verificationStatus === 'failed' ? "Verifikasi gagal, halaman akan dimuat ulang..." :
-                   faceDetectionProgress < 30 ? "Tahan wajah anda tepat di depan kamera..." : 
-                   faceDetectionProgress < 60 ? "Sedang memverifikasi identitas..." : 
-                   faceDetectionProgress < 90 ? "Hampir selesai..." : 
-                   "Verifikasi berhasil!"}
-                </p>
-              </div>
-            )}
+              )}
           </div>
         </>
       ) : null}
