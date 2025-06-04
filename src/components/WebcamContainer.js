@@ -356,7 +356,7 @@ const WebCamContainer = () => {
                       <strong>
                         {distance ? `${distance.toFixed(0)} meter` : "-"}
                       </strong>
-                      (Radius maksimal: <strong>{maxRadius} meter</strong>)
+                      {" "}(Radius maksimal: <strong>{maxRadius} meter</strong>)
                     </p>
                   </div>
                 )}
