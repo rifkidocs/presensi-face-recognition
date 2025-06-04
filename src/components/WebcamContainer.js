@@ -351,13 +351,24 @@ const WebCamContainer = () => {
                         {distance ? `${distance.toFixed(0)}m` : "?"}
                       </span>
                     </div>
-                    <p className='text-xs mt-1'>
-                      Jarak dengan lokasi:{" "}
-                      <strong>
-                        {distance ? `${distance.toFixed(0)} meter` : "-"}
-                      </strong>
-                      {" "}(Radius maksimal: <strong>{maxRadius} meter</strong>)
-                    </p>
+                    <div className='mt-2 space-y-1'>
+                      <p className='text-xs'>
+                        Jarak Anda dengan Lokasi Presensi:{" "}
+                        <strong className='text-yellow-300'>
+                          {distance ? `${distance.toFixed(0)} meter` : "-"}
+                        </strong>
+                      </p>
+                      <p className='text-xs'>
+                        Radius Maksimal yang Diizinkan:{" "}
+                        <strong className='text-green-300'>{maxRadius} meter</strong>
+                      </p>
+                      <p className='text-xs'>
+                        Status Lokasi:{" "}
+                        <strong className={isWithinRadius ? 'text-green-300' : 'text-red-300'}>
+                          {isWithinRadius ? "Dalam Jangkauan" : "Di Luar Jangkauan"}
+                        </strong>
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
