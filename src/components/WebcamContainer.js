@@ -323,17 +323,23 @@ const WebCamContainer = () => {
                     : "Anda berada di luar area presensi. Silakan pindah ke lokasi yang ditentukan."}
                 </p>
                 {userCoordinates && distance !== null && (
-                  <div className='text-sm'>
-                    <p>
-                      Koordinat Anda: {userCoordinates.latitude.toFixed(6)},{" "}
-                      {userCoordinates.longitude.toFixed(6)}
-                    </p>
-                    {locationData && (
-                      <p>
-                        Koordinat Sekolah: {locationData.latitude},{" "}
-                        {locationData.longitude}
+                  <div className='text-sm space-y-2'>
+                    <div className='bg-gray-700 p-2 rounded-lg'>
+                      <p className='text-gray-300'>
+                        Koordinat Anda:{" "}
+                        <span className='text-yellow-300 font-mono'>
+                          {userCoordinates.latitude.toFixed(6)}, {userCoordinates.longitude.toFixed(6)}
+                        </span>
                       </p>
-                    )}
+                      {locationData && (
+                        <p className='text-gray-300 mt-1'>
+                          Koordinat Sekolah:{" "}
+                          <span className='text-green-300 font-mono'>
+                            {locationData.latitude}, {locationData.longitude}
+                          </span>
+                        </p>
+                      )}
+                    </div>
                     <div className='flex items-center mt-2'>
                       <div className='flex-1 bg-gray-200 h-2 rounded-full overflow-hidden'>
                         <div
